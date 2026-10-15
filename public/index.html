@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14141a">
+<title>VEXNET Field Control</title>
+<style>
+  :root { --bg:#14141a; --card:#161B22; --sel:#22303c; --cyan:#00F0FF; --orange:#FF8C00;
+          --green:#2ECC71; --red:#FF3131; --blue:#3B8BFF; --gray:#8a8a99; --dim:#3a3a46; --white:#e6e6e6; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:var(--bg); color:var(--white);
+              font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  body { padding:12px 16px calc(16px + env(safe-area-inset-bottom)); max-width:980px; margin:0 auto; }
+  button { font:inherit; color:inherit; border:0; border-radius:12px; cursor:pointer; touch-action:manipulation; }
+  .periods { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
+  .periods button { background:var(--card); color:var(--gray); padding:12px 8px; font-weight:700; font-size:14px; line-height:1.3; }
+  .periods button.sel { background:var(--sel); color:var(--cyan); }
+  .status { text-align:center; color:var(--gray); font-weight:700; font-size:clamp(15px,3.6vw,20px); margin:14px 0 0; min-height:1.4em; }
+  .clock { text-align:center; font-family:ui-monospace,Consolas,monospace; font-weight:800;
+           font-size:clamp(84px,26vw,200px); line-height:1.05; margin:0; }
+  .ctl { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; margin:6px 0 14px; }
+  .ctl button { padding:18px 8px; font-weight:800; font-size:clamp(16px,4.4vw,22px); }
+  .start { background:var(--green); color:#0b0b0f; } .stop { background:var(--red); color:#0b0b0f; }
+  .reset { background:var(--dim); }
+  .alliances { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .card { background:var(--card); border:3px solid; border-radius:14px; padding:12px; }
+  .card.red { border-color:var(--red); } .card.blue { border-color:var(--blue); }
+  .head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .head h2 { margin:0; font-size:18px; } .red h2 { color:var(--red); } .blue h2 { color:var(--blue); }
+  .head label { display:flex; align-items:center; gap:8px; font-size:14px; padding:6px 0 6px 10px; }
+  .head input { width:22px; height:22px; accent-color:var(--cyan); }
+  .toggle { width:100%; padding:18px 8px; font-weight:800; font-size:clamp(16px,4.2vw,20px); background:var(--dim); }
+  .toggle.on { background:var(--green); color:#0b0b0f; }
+  .robots { font-family:ui-monospace,Consolas,monospace; font-size:13px; margin:10px 2px 2px;
+            white-space:pre-wrap; word-break:break-word; min-height:3em; }
+  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:14px; color:var(--gray); font-size:13px; flex-wrap:wrap; }
+  .links a { color:var(--cyan); margin-right:12px; }
+  .release { background:var(--card); color:var(--gray); padding:10px 14px; font-weight:700; }
+  .release.on { background:var(--orange); color:#0b0b0f; }
+  .conn { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--red); margin-right:6px; }
+  .conn.ok { background:var(--green); }
+  .warn { background:#3a2a10; color:var(--orange); border-radius:10px; padding:8px 12px; margin-bottom:10px; font-size:13px; display:none; }
+  #pin { position:fixed; inset:0; background:rgba(10,10,15,.96); display:none; align-items:center; justify-content:center; z-index:10; padding:20px; }
+  #pin.show { display:flex; }
+  #pin form { background:var(--card); padding:24px; border-radius:16px; width:100%; max-width:340px; text-align:center; }
+  #pin input { width:100%; font-size:28px; text-align:center; letter-spacing:6px; padding:12px; border-radius:10px;
+               border:2px solid var(--dim); background:var(--bg); color:var(--white); margin:14px 0; }
+  #pin button { width:100%; padding:14px; background:var(--cyan); color:#0b0b0f; font-weight:800; font-size:18px; }
+  #pin p { margin:0; color:var(--gray); } #pin .err { color:var(--red); min-height:1.3em; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="warn" id="warn">Storage is in memory: set up Upstash Redis (see README) or the match state can reset between requests.</div>
+<div class="periods" id="periods"></div>
+<p class="status" id="status">connecting...</p>
+<p class="clock" id="clock">-:--</p>
+<div class="ctl">
+  <button class="start" id="start">START</button>
+  <button class="stop" id="stop">STOP</button>
+  <button class="reset" id="reset">RESET</button>
+</div>
+<div class="alliances">
+  <div class="card red">
+    <div class="head"><h2>RED ALLIANCE</h2><label><input type="checkbox" id="in-red">in this run</label></div>
+    <button class="toggle" id="tog-red">DISABLED</button>
+    <div class="robots" id="rob-red"></div>
+  </div>
+  <div class="card blue">
+    <div class="head"><h2>BLUE ALLIANCE</h2><label><input type="checkbox" id="in-blue">in this run</label></div>
+    <button class="toggle" id="tog-blue">DISABLED</button>
+    <div class="robots" id="rob-blue"></div>
+  </div>
+</div>
+<div class="foot">
+  <span><span class="conn" id="conn"></span><span id="connText">connecting</span></span>
+  <span class="links">Team links: <a href="/red" target="_blank">/red</a><a href="/blue" target="_blank">/blue</a></span>
+  <button class="release" id="release">RELEASE ROBOTS</button>
+</div>
+
+<div id="pin"><form id="pinForm">
+  <p><b>VEXNET Field Control</b></p><p>Enter the control PIN</p>
+  <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" autofocus>
+  <button type="submit">Unlock</button><div class="err" id="pinErr"></div>
+</form></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let pin = ""; try { pin = localStorage.getItem("vexnetPin") || ""; } catch (e) {}
+let lastOk = 0, periodsBuilt = false, prev = null;
+
+// ─── Sounds (this device only): countdown ticks, "Mama!!" at GO, buzzer at the end ───
+let audioCtx = null;
+const goSound = new Audio("/sounds/go.mp3");
+function tone(hz, ms) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = hz; g.gain.value = 0.2; o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + ms / 1000);
+  } catch (e) {}
+}
+function sounds(s) {
+  if (prev) {
+    if (s.countdown && s.countdown !== prev.countdown) tone(880, 150);
+    if (s.go && !prev.go) { goSound.currentTime = 0; goSound.play().catch(() => tone(1320, 600)); }
+    if (prev.running && !s.running && prev.secs <= 1) tone(440, 900);
+  }
+  prev = s;
+}
+
+function headers() { return {"Content-Type":"application/json", "X-Pin":pin}; }
+async function send(cmd) {
+  try {
+    const r = await fetch("/api/cmd", {method:"POST", headers:headers(), body:JSON.stringify(cmd)});
+    if (r.status === 401) showPin(pin ? "Wrong PIN" : "");
+    else if (r.ok) render(await r.json());
+  } catch (e) {}
+}
+function showPin(msg) { $("pin").classList.add("show"); $("pinErr").textContent = msg || ""; $("pinInput").focus(); }
+$("pinForm").addEventListener("submit", e => {
+  e.preventDefault(); pin = $("pinInput").value.trim();
+  try { localStorage.setItem("vexnetPin", pin); } catch (e) {}
+  $("pinInput").value = ""; $("pin").classList.remove("show");
+  goSound.load();   // this click lets the browser play sounds later
+});
+
+function buildPeriods(periods) {
+  const box = $("periods"); box.innerHTML = "";
+  for (const p of periods) {
+    const b = document.createElement("button"); b.dataset.key = p.key;
+    b.innerHTML = p.title + "<br>" + Math.floor(p.secs/60) + ":" + String(p.secs%60).padStart(2,"0");
+    b.addEventListener("click", () => send({cmd:"select", key:p.key}));
+    box.appendChild(b);
+  }
+  periodsBuilt = true;
+}
+function render(s) {
+  if (!periodsBuilt) buildPeriods(s.periods);
+  for (const b of $("periods").children) b.classList.toggle("sel", b.dataset.key === s.selected);
+  $("status").textContent = s.status;
+  $("clock").textContent = s.clockText; $("clock").style.color = s.clockColor;
+  for (const a of ["red","blue"]) {
+    const on = s.enabled[a], t = $("tog-"+a);
+    t.textContent = on ? "ENABLED - tap to disable" : "DISABLED - tap to enable";
+    t.classList.toggle("on", on);
+    const cb = $("in-"+a); if (document.activeElement !== cb) cb.checked = s.inRun[a];
+    $("rob-"+a).textContent = s.robots[a].join("\n");
+  }
+  const rel = $("release"); rel.textContent = s.released ? "TAKE CONTROL" : "RELEASE ROBOTS";
+  rel.classList.toggle("on", s.released);
+  $("warn").style.display = s.storage === "memory" ? "block" : "none";
+  sounds(s);
+}
+async function poll() {
+  try {
+    const r = await fetch("/api/state", {cache:"no-store"});
+    const s = await r.json();
+    if (!r.ok) throw new Error(s.error || r.status);
+    lastOk = Date.now(); setConn(true, "connected"); render(s);
+  } catch (e) { if (Date.now() - lastOk > 2000) setConn(false, "no connection to the server"); }
+}
+function setConn(ok, text) { $("conn").classList.toggle("ok", ok); $("connText").textContent = text; }
+
+$("start").addEventListener("click", () => send({cmd:"start"}));
+$("stop").addEventListener("click", () => send({cmd:"stop"}));
+$("reset").addEventListener("click", () => send({cmd:"reset"}));
+$("release").addEventListener("click", () => send({cmd:"release"}));
+for (const a of ["red","blue"]) {
+  $("tog-"+a).addEventListener("click", () => send({cmd:"toggle", alliance:a}));
+  $("in-"+a).addEventListener("change", e => send({cmd:"inrun", alliance:a, value:e.target.checked}));
+}
+if (!pin) showPin("");
+poll(); setInterval(poll, 300);
+</script>
+</body>
+</html>
