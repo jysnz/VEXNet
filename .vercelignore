@@ -1,0 +1,6 @@
+﻿# Not part of the website: these run on laptops / robots, not on Vercel.
+relay/
+robot/
+test/
+dev-server.mjs
+README.md
