@@ -1,16 +1,19 @@
 """
-relay.py -- VEXNET field control, ALLIANCE laptop
+relay.py -- VEXNET field control, laptop relay
 
-Runs on the laptop each driver's V5 controller is plugged into by USB. It reads the
-match state from the VEXNET website over HTTPS and forwards it to every controller:
-USB -> controller -> radio -> brain (the robot program obeys it, see ROBOT-CODE.md).
-It also reports each robot's status back to the website.
+Runs on every laptop that has V5 controllers plugged in by USB. It registers this laptop with the
+VEXNET website, and while a match uses its controllers it forwards the match state to each robot:
+USB -> controller -> radio -> brain (the robot program obeys it, see robot/). It also reports each
+robot's status back, which is what makes the laptop and its controllers show up in the match lobby.
 
-    py -3 relay.py --server https://your-project.vercel.app --alliance red --token <RELAY_TOKEN>
+    py -3 relay.py --server https://your-project.vercel.app --token <RELAY_TOKEN>
+    py -3 relay.py ... --name PIT-LAPTOP          how this laptop is shown on the website (default: computer name)
     py -3 relay.py ... --ports COM3 COM6          only these controllers (default: every one plugged in)
 
-The token can also come from the VEXNET_TOKEN environment variable, and the server from
-VEXNET_SERVER, so the command can be just:   py -3 relay.py --alliance red
+The token and server can also come from VEXNET_TOKEN and VEXNET_SERVER, so the command can be just:
+    py -3 relay.py
+
+Which controller is which robot (RED 1, BLUE 2, ...) is chosen on the website, in the match lobby.
 
 SETUP (once per laptop)
     - Python 3 with tkinter, and:  pip install pyserial
@@ -24,6 +27,8 @@ SETUP (once per laptop)
 SAFETY
     - Lost the website (or the internet)?  This tells its robots DISABLED within ~1.5 s.
     - This window closed or a cable pulled?  The robot disables itself after 2 s of silence.
+    - A controller that is no longer part of a match is sent "FC OFF" for a few seconds, which hands
+      its robot back to normal practice mode (otherwise it would stay disabled until the program restarts).
 """
 
 import argparse
@@ -38,6 +43,7 @@ import threading
 import time
 import tkinter as tk
 import urllib.error
+import urllib.parse
 import urllib.request
 
 try:
@@ -252,19 +258,19 @@ def describe_robot(r):
 
 # ─── The website ────────────────────────────────────────────────────────────
 class Website:
-    """Polls /api/relay for the line to send the robots, and posts the robots' status back."""
+    """Polls /api/relay for what to send each controller, and posts the controllers' status back."""
 
-    def __init__(self, server, alliance, token, robotsFn):
-        self.server, self.alliance, self.token, self.robotsFn = server.rstrip("/"), alliance, token, robotsFn
-        self.fc = None            # last FC line the website gave us
-        self.clock = None         # its clock summary, for the window
+    def __init__(self, server, name, token, robotsFn):
+        self.server, self.name, self.token, self.robotsFn = server.rstrip("/"), name, token, robotsFn
+        self.ports = {}           # port -> {"line", "slot", "label", "code"} from the last good poll
+        self.clock = None         # clock summary of the match this laptop is in
         self.okAt = 0.0           # when the last poll succeeded
         self.note = "connecting to the website..."
         threading.Thread(target=self._pollLoop, daemon=True).start()
         threading.Thread(target=self._reportLoop, daemon=True).start()
 
     def fresh(self):
-        return self.fc is not None and time.time() - self.okAt < SERVER_STALE_S
+        return self.okAt > 0 and time.time() - self.okAt < SERVER_STALE_S
 
     def _request(self, path, body=None):
         req = urllib.request.Request(self.server + path, headers={"X-Relay-Token": self.token,
@@ -279,9 +285,9 @@ class Website:
     def _pollLoop(self):
         while True:
             try:
-                data = self._request(f"/api/relay?alliance={self.alliance}")
-                self.fc, self.clock, self.okAt = data["fc"], data.get("clock"), time.time()
-                self.note = f"connected to {self.server}"
+                data = self._request("/api/relay?relay=" + urllib.parse.quote(self.name))
+                self.ports, self.clock, self.okAt = data["ports"], data.get("clock"), time.time()
+                self.note = f"connected to {self.server} as {self.name}"
             except urllib.error.HTTPError as e:
                 self.note = {401: "the website rejected the relay token (check RELAY_TOKEN)",
                              500: "the website is missing RELAY_TOKEN / settings"}.get(e.code, f"website error {e.code}")
@@ -290,20 +296,19 @@ class Website:
             time.sleep(POLL_INTERVAL_S)
 
     def _reportLoop(self):
-        name = socket.gethostname()
         while True:
             try:
                 robots = [{"port": r["port"], "fcs": r["fcs"],
                            "age": None if r["age"] is None else round(r["age"], 2), "error": r["error"]}
                           for r in self.robotsFn()]
-                self._request("/api/relay", {"alliance": self.alliance, "name": name, "robots": robots})
+                self._request("/api/relay", {"relay": self.name, "robots": robots})
             except Exception:
                 pass
             time.sleep(REPORT_INTERVAL_S)
 
 
 def disabledLine(fc):
-    """The same FC line with the enable flag cleared: what robots hear when the website is gone."""
+    """The same FC line with the enable flag cleared: what a robot hears when the website is gone."""
     parts = (fc or "").split()
     if len(parts) == 5 and parts[0] == "FC":
         parts[2] = "0"
@@ -311,31 +316,32 @@ def disabledLine(fc):
     return None   # FC OFF / nothing yet: send nothing (practice mode)
 
 
+RELEASE_FOR_S = 3.0   # a controller dropped from its match hears "FC OFF" this long
+
+
 class RelayApp:
     def __init__(self, root, args, vexcom):
-        self.root, self.args, self.alliance, self.vexcom = root, args, args.alliance, vexcom
+        self.root, self.args, self.vexcom = root, args, vexcom
         self.links = {}
         self.lastScan = 0.0
         self.scanning = False
         self.lock = threading.Lock()
-        self.lastFc = None
-        self.site = Website(args.server, self.alliance, args.token, self.robotStatuses)
+        self.lastLine = {}        # port -> last line the website gave it
+        self.releaseUntil = {}    # port -> time until which it hears "FC OFF"
+        self.site = Website(args.server, args.name, args.token, self.robotStatuses)
 
-        root.title(f"VEXNET Relay - {self.alliance.upper()}")
+        root.title(f"VEXNET Relay - {args.name}")
         root.configure(bg=BG)
-        root.geometry("620x520")
-        tk.Label(root, text=f"{self.alliance.upper()} ALLIANCE", bg=BG, fg=ALLIANCE_COLORS[self.alliance],
-                 font=("Segoe UI", 22, "bold")).pack(pady=(14, 0))
-        self.periodLabel = tk.Label(root, bg=BG, fg=GRAY, font=("Segoe UI", 16, "bold"))
+        root.geometry("640x520")
+        tk.Label(root, text=args.name, bg=BG, fg=GREEN, font=("Segoe UI", 20, "bold")).pack(pady=(14, 0))
+        self.periodLabel = tk.Label(root, bg=BG, fg=GRAY, font=("Segoe UI", 15, "bold"))
         self.periodLabel.pack()
-        self.clockLabel = tk.Label(root, bg=BG, fg=WHITE, font=("Consolas", 80, "bold"))
+        self.clockLabel = tk.Label(root, bg=BG, fg=WHITE, font=("Consolas", 72, "bold"))
         self.clockLabel.pack()
-        self.enableLabel = tk.Label(root, bg=DIM, fg=WHITE, font=("Segoe UI", 18, "bold"), pady=8)
-        self.enableLabel.pack(fill="x", padx=16)
         self.robotsLabel = tk.Label(root, bg=CARD, fg=WHITE, font=("Consolas", 11), justify="left",
                                     anchor="nw", padx=10, pady=8)
         self.robotsLabel.pack(fill="both", expand=True, padx=16, pady=10)
-        self.siteLabel = tk.Label(root, bg=BG, fg=GRAY, font=("Segoe UI", 10), wraplength=580, justify="left")
+        self.siteLabel = tk.Label(root, bg=BG, fg=GRAY, font=("Segoe UI", 10), wraplength=600, justify="left")
         self.siteLabel.pack(fill="x", padx=16, pady=(0, 10))
         root.protocol("WM_DELETE_WINDOW", self.close)
         self.tick()
@@ -346,7 +352,7 @@ class RelayApp:
 
     def scanControllers(self):
         """Own thread: switching a controller's channel takes seconds. A port another relay window
-        already holds is left to it, so a red and a blue relay on one laptop each keep their own."""
+        already holds is left to it."""
         try:
             wanted = self.args.ports or [p.device for p in vex_ports() if p.pid == VEX_PID_CONTROLLER]
             with self.lock:
@@ -365,13 +371,26 @@ class RelayApp:
         finally:
             self.scanning = False
 
-    def robotLine(self):
-        if self.site.fresh():
-            self.lastFc = self.site.fc
-            return self.site.fc
-        if self.lastFc is None:
-            return None
-        return disabledLine(self.lastFc)
+    def lineFor(self, port, now):
+        """What this controller's robot should hear right now (None = nothing)."""
+        fresh = self.site.fresh()
+        entry = self.site.ports.get(port) if fresh else None
+        if entry and entry.get("line"):
+            self.lastLine[port] = entry["line"]
+            self.releaseUntil.pop(port, None)
+            return entry["line"]
+        if not fresh:   # the website is gone: whatever it was told, disable it
+            return disabledLine(self.lastLine.get(port))
+        # The website is fine but this controller has no line: it was never in a match, the match hasn't
+        # started yet, or it was dropped. After a match, hand the robot back to practice mode.
+        if port in self.lastLine and entry is None:
+            if port not in self.releaseUntil:
+                self.releaseUntil[port] = now + RELEASE_FOR_S
+            if now < self.releaseUntil[port]:
+                return "FC OFF"
+            self.lastLine.pop(port, None)
+            self.releaseUntil.pop(port, None)
+        return None
 
     def tick(self):
         now = time.time()
@@ -379,33 +398,27 @@ class RelayApp:
             self.lastScan, self.scanning = now, True
             threading.Thread(target=self.scanControllers, daemon=True).start()
 
-        line = self.robotLine()
         with self.lock:
             links = list(self.links.values())
         for l in links:
-            l.line = line
+            l.line = self.lineFor(l.port, now)
 
         c = self.site.clock
-        fresh = self.site.fresh()
-        if not c:
-            self.periodLabel.configure(text="waiting for the website")
+        if not self.site.fresh():
+            self.periodLabel.configure(text="no website signal - robots disabled")
+            self.clockLabel.configure(text="-:--", fg=RED)
+        elif not c:
+            self.periodLabel.configure(text="waiting for a match to use this laptop's controllers")
             self.clockLabel.configure(text="-:--", fg=GRAY)
-            self.enableLabel.configure(text="PRACTICE MODE (not under field control)", bg=DIM, fg=WHITE)
         else:
-            self.periodLabel.configure(text=c["status"])
+            self.periodLabel.configure(text=f"{c['type']}  -  {c['code']}  -  {c['status']}")
             self.clockLabel.configure(text=c["clockText"], fg=c["clockColor"])
-            if not fresh:
-                self.enableLabel.configure(text="DISABLED - no website signal", bg=RED, fg=WHITE)
-            elif c["released"]:
-                self.enableLabel.configure(text="RELEASED - practice mode", bg=ORANGE, fg="#0b0b0f")
-            elif c["countdown"]:
-                self.enableLabel.configure(text="GET READY", bg=ORANGE, fg="#0b0b0f")
-            elif c["enabled"]:
-                self.enableLabel.configure(text="ENABLED", bg=GREEN, fg="#0b0b0f")
-            else:
-                self.enableLabel.configure(text="DISABLED", bg=DIM, fg=WHITE)
 
-        rows = [f"{s['port']:<6} {describe_robot(s)}" for s in self.robotStatuses()]
+        rows = []
+        for s in self.robotStatuses():
+            entry = self.site.ports.get(s["port"])
+            who = f"{entry['label']} ({entry['code']})" if entry else "not in a match"
+            rows.append(f"{s['port']:<6} {who:<22} {describe_robot(s)}")
         self.robotsLabel.configure(text="\n".join(rows) or "no V5 controller plugged in by USB")
         self.siteLabel.configure(text=self.site.note)
         self.root.after(100, self.tick)
@@ -420,8 +433,8 @@ class RelayApp:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="VEXNET field control - alliance relay")
-    ap.add_argument("--alliance", required=True, choices=("red", "blue"))
+    ap = argparse.ArgumentParser(description="VEXNET field control - laptop relay")
+    ap.add_argument("--name", default=socket.gethostname(), help="how this laptop is shown on the website (default: computer name)")
     ap.add_argument("--server", default=os.environ.get("VEXNET_SERVER"), help="https://your-project.vercel.app")
     ap.add_argument("--token", default=os.environ.get("VEXNET_TOKEN"), help="the website's RELAY_TOKEN")
     ap.add_argument("--ports", nargs="+", help="controller COM ports (default: all plugged in)")

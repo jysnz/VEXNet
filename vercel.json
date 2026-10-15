@@ -1,10 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "rewrites": [
-    { "source": "/red", "destination": "/team.html" },
-    { "source": "/blue", "destination": "/team.html" }
-  ],
   "headers": [
     { "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
   ]

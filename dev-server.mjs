@@ -19,11 +19,10 @@ try {
 }
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mp3': 'audio/mpeg', '.css': 'text/css', '.json': 'application/json' };
-const rewrites = { '/red': '/team.html', '/blue': '/team.html' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  let path = rewrites[url.pathname.replace(/\/+$/, '') || '/'] ?? url.pathname;
+  let path = url.pathname;
 
   if (path.startsWith('/api/')) {
     const file = join(root, 'api', `${path.slice(5)}.js`);

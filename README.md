@@ -1,59 +1,73 @@
 # VEXNET Field Control
 
-Scrimmage field control for VEX V5 robots. The **website** (Vercel) holds the UI and the match clock; a small
-**relay** on the laptop with the controllers plugged in by USB passes the match state to the robots; a tiny
-**robot module** in each robot program obeys it.
+Scrimmage field control for VEX V5 robots, run from a website. You **create a match** (Skills Challenge,
+1v1 or 2v2), other laptops **join it with a code**, the controllers get assigned to robot slots, and **START**
+runs the whole match: 3-2-1, autonomous, driver control.
 
 ```
- phone / tablet / laptop browser ──► VEXNET website on Vercel ◄── polls over HTTPS ── relay (red laptop)  ─┐
-   control page  /                    UI + match clock + PIN     ◄── polls over HTTPS ── relay (blue laptop) ┤
-   team pages    /red  /blue          state in Upstash Redis                                                │
-                                                       controller USB ► radio ► Brain (robot program) ◄─────┘
+ any browser (phone / tablet / laptop) ──► VEXNET website on Vercel ◄── polls over HTTPS ── relay on laptop A ─┐
+   create / join / lobby / match screen      matches + clock, PIN                          ── relay on laptop B ─┤
+                                             state in Upstash Redis                                              │
+                                                       controller USB ► radio ► Brain (robot program) ◄─────────┘
 ```
 
 | Folder | What it is | Runs on |
 |---|---|---|
 | `public/`, `api/`, `vercel.json` | the website + its API | Vercel |
-| `relay/relay.py` | forwards the match state to the robots | each alliance laptop (controllers by USB) |
-| `robot/` | `fieldctl` — drop into any PROS robot project | the V5 Brain |
+| `relay/relay.py` | forwards the match to the robots, reports the laptop's controllers | every laptop with controllers plugged in (USB) |
+| `robot/` | `fieldctl` - drop into any PROS robot project | the V5 Brain |
 | `test/` | match-logic tests (`npm test`) | anywhere |
 | `dev-server.mjs` | run the site locally (`npm run dev`) | your laptop |
 
-Pages
-- **`/`** control page: period, START / STOP / RESET, enable / disable each alliance, release, countdown beeps and
-  the "Mama!!" sound at GO (on the device that has the page open). Needs the **PIN**.
-- **`/red`, `/blue`** team pages: clock, ROBOTS ENABLED / DISABLED banner, robot status. View-only, no PIN.
+## How a match goes
 
-Match: **Autonomous 0:30** then **Driver Control 1:30**; also Driver Skills 1:00 and Programming Skills 1:00.
-START runs a 3-2-1 countdown with the robots disabled, then GO enables every alliance ticked "in this run".
-Edit the times in `api/_lib.js` (`PERIODS`).
+1. **Every laptop with controllers** runs the relay (below). It shows up on the website as an online laptop with its controllers.
+2. **Host** opens the website → **Create match** → picks the type → enters the **PIN** → gets a 6-character **match code**.
+3. **Second laptop** opens the same website → **Join match** → types the code → taps **This laptop** (it is picked from the laptops that are online).
+   The lobby shows it as *joined*.
+4. **Host** taps **Auto-assign controllers**: the joined laptops' controllers fill the slots in order (`RED 1, RED 2, BLUE 1, BLUE 2`, laptop A first).
+   For a 2v2 with two laptops of two controllers each, laptop A becomes red and laptop B blue. Any slot can be changed by hand with its dropdown.
+5. START unlocks when every slot has a controller whose robot is **replying**. The lobby says what is missing.
+6. **START MATCH** (host only, PIN): 3-2-1 → **autonomous** → short transition → **driver control** → ended. Everything is disabled at the end.
+
+| Type | Robots | Timeline |
+|---|---|---|
+| Skills Challenge - Autonomous | 1 | autonomous 60 s |
+| Skills Challenge - Driver Control | 1 | driver control 60 s |
+| 1 v 1 | 2 (red 1, blue 1) - one laptop with two controllers, or two laptops with one each | autonomous 30 s, 3 s transition, driver control 90 s |
+| 2 v 2 | 4 (red 1-2, blue 1-2) - usually two laptops | autonomous 30 s, 3 s transition, driver control 90 s |
+
+During a match the host can **Disable / Enable an alliance** (referee), **STOP** (everything disabled, match over), or **RESET** (back to ready).
+The match screen plays countdown beeps, the "Mama!!" sound at GO (`public/sounds/go.mp3`) and a buzzer at the end, on the device that has it open.
+Times live in `api/_engine.js` (`TYPES`, `AUTO`, `TRANSITION`, `DRIVER`).
+
+Who can do what: **anyone with the code** can watch a match and join it with a laptop; **only someone with the PIN** can create, assign, start, stop, reset or close.
 
 ## 1. Deploy to Vercel
 
-1. Put this folder in a Git repo and push it, or run `vercel` inside it (needs the [Vercel CLI](https://vercel.com/docs/cli)).
-2. In the Vercel project → **Storage** → add **Upstash Redis** (Marketplace). It adds the `UPSTASH_REDIS_REST_*`
-   (or `KV_REST_API_*`) variables for you. The match state lives there.
+1. Put this folder in a Git repo and push it, or run `vercel` inside it ([Vercel CLI](https://vercel.com/docs/cli)).
+2. In the Vercel project → **Storage** → add **Upstash Redis** (Marketplace). It sets the `UPSTASH_REDIS_REST_*`
+   (or `KV_REST_API_*`) variables. Matches and laptops live there.
 3. **Settings → Environment Variables**, add for Production:
-   - `CONTROL_PIN` — the PIN typed on the control page.
-   - `RELAY_TOKEN` — a long random secret for the relays: `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`
-4. Redeploy. Open the site: the control page asks for the PIN.
+   - `CONTROL_PIN` - the PIN for the host.
+   - `RELAY_TOKEN` - a long random secret for the relays: `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`
+4. Redeploy. Open the site.
 
-There is no build step: Vercel serves `public/` and runs `api/*.js` (Node 20+).
-Without Redis the API falls back to memory, which is only reliable on one local process (the page warns you).
+No build step: Vercel serves `public/` and runs `api/*.js` (Node 20+). Without Redis the API falls back to memory, which only
+works on one local process (the page warns you).
 
-## 2. Run the relay (each alliance laptop)
+## 2. Run the relay (every laptop with controllers)
 
 ```
 pip install pyserial
-py -3 relay\relay.py --server https://your-project.vercel.app --alliance red  --token <RELAY_TOKEN>
-py -3 relay\relay.py --server https://your-project.vercel.app --alliance blue --token <RELAY_TOKEN>
+py -3 relay\relay.py --server https://your-project.vercel.app --token <RELAY_TOKEN>
 ```
-Plug each driver's controller into that laptop by USB. Needs VS Code with the PROS extension (it ships `vexcom.exe`),
-or pass `--vexcom <path>`. Close the PROS terminal first. Two controllers on one laptop that should belong to different
-alliances: give each relay its own `--ports COM3` / `--ports COM6`.
-Set `VEXNET_SERVER` and `VEXNET_TOKEN` as environment variables to shorten the command to `py -3 relay\relay.py --alliance red`.
-
-The relay window shows the clock, ENABLED / DISABLED, and each robot's status. The control page shows the same robot status.
+- Plug each controller in by USB (paired to its robot as usual). Needs VS Code with the PROS extension (it ships `vexcom.exe`),
+  or pass `--vexcom <path>`. Close the PROS terminal first (only one program can use a controller's port).
+- `--name PIT-A` changes how the laptop is shown (default: the computer name). Two laptops need different names.
+- `--ports COM3 COM6` limits it to those controllers. `VEXNET_SERVER` / `VEXNET_TOKEN` environment variables shorten the command to `py -3 relay\relay.py`.
+- The window shows which robot slot each controller is in, the clock, and each robot's status.
+- A controller that is no longer in a match is sent `FC OFF` for 3 s, which puts its robot back in normal practice mode.
 
 ## 3. Put the robot module in your robot programs
 
@@ -77,10 +91,10 @@ void opcontrol() {
   }
 }
 ```
-Behaviour: nothing changes until the first message arrives. After that the robot is DISABLED unless the website enables it,
-runs `myAutonomous()` once per autonomous run (killed on disable), allows joystick driving in an enabled driver period, shows
-`AUTO 0:25 ON` on the controller's top line, and disables itself if it hears nothing for 2 s. It replies `FCS|...` lines the
-relay reads. It does not use the real competition state, so it works in any program slot that includes the module.
+Nothing changes until the first message arrives. After that the robot is DISABLED unless the match enables it, runs `myAutonomous()`
+once per autonomous period (killed on disable), allows joystick driving in an enabled driver period, shows `AUTO 0:25 ON` on the
+controller's top line, and disables itself if it hears nothing for 2 s. It replies `FCS|...` lines the relay reads. It does not use the real
+competition state, so it works in any program slot that includes the module.
 
 ## Local test (no Vercel, no robots)
 
@@ -92,16 +106,18 @@ npm test                            # match-logic tests
 
 ## Safety notes
 
-- Anyone with the PIN can enable robots, and anyone with the relay token can speak for a relay: use long values, keep the token
-  out of screenshots, and rotate both in Vercel if they leak. The team pages are view-only and show only the clock and status.
-- A lost website, internet or relay disables the robots (relay: ~1.5 s, robot: 2 s). The extra hop adds a little delay to a
-  disable compared with a LAN, so keep the robots off the floor while testing.
+- Anyone with the PIN can run matches and enable robots, and anyone with the relay token can speak for a relay: use long values, keep the token out of
+  screenshots, and rotate both in Vercel if they leak. Match codes only grant viewing and joining.
+- A lost website, internet or relay disables the robots (relay: ~1.5 s, robot: 2 s). The extra hop adds a little delay to a disable compared with a LAN,
+  so keep the robots off the floor while testing.
 
 ## API (for reference)
 
 | Endpoint | Auth | |
 |---|---|---|
-| `GET /api/state` | none | public snapshot (clock, enables, robot status) |
-| `POST /api/cmd` | `x-pin` | `{cmd: select\|start\|stop\|reset\|toggle\|inrun\|release, ...}` |
-| `GET /api/relay?alliance=red` | `x-relay-token` | `{fc, clock}` the line for the robots |
-| `POST /api/relay` | `x-relay-token` | relay → website robot status |
+| `GET /api/relays` | none | laptops online and their controllers |
+| `GET /api/match?code=ABC123` | none | the match (clock, slots, readiness, laptops) |
+| `POST /api/match` `{action:"join",code,relay}` | none | a laptop joins |
+| `POST /api/match` `{action:"create"\|"assign"\|"autoassign"\|"start"\|"stop"\|"reset"\|"toggle"\|"leave"\|"close",...}` | `x-pin` | host actions |
+| `GET /api/relay?relay=NAME` | `x-relay-token` | what to send each of that laptop's controllers |
+| `POST /api/relay` | `x-relay-token` | the laptop reports its controllers' status |
