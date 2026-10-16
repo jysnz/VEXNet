@@ -86,7 +86,7 @@ py -3 relay\relay.py --server https://your-project.vercel.app --token <RELAY_TOK
 pros c add-depot VEXNET https://raw.githubusercontent.com/jysnz/VEXNet/master/robot/depot.json
 pros c apply fieldctl
 ```
-Later updates: `pros c update`. (The repo has to be public for the depot link to work.)
+Later updates: `pros c upgrade fieldctl` (or `pros c apply fieldctl@<version>`). (The repo has to be public for the depot link to work.)
 
 That's all: **no code to add.** Build and upload as usual (`pros mu`). The library starts with the program, and while a match has the robot:
 
