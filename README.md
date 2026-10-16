@@ -80,8 +80,7 @@ py -3 relay\relay.py --server https://your-project.vercel.app --token <RELAY_TOK
 
 ## 3. Put the field-control library in your robot programs
 
-**Step-by-step guide for teams: [robot/README.md](robot/README.md)** - adding VEXNET to a project, uploading it to a slot,
-checking the website can see the robot, and what to do when it can't.
+**How to download the library and upload it to each slot: [robot/README.md](robot/README.md)**
 
 `fieldctl` is a PROS library, installed the same way as LemLib. In the PROS terminal of the robot project (VS Code with the PROS extension), once:
 
