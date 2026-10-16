@@ -88,30 +88,21 @@ pros c apply fieldctl
 ```
 Later updates: `pros c update`. (The repo has to be public for the depot link to work.)
 
-Then in the program:
+That's all: **no code to add.** Build and upload as usual (`pros mu`). The library starts with the program, and while a match has the robot:
 
-```cpp
-#include "fieldctl/fieldctl.hpp"
+| Match says | The robot |
+|---|---|
+| disabled (before START, transition, after the match, referee) | pauses the program's `opcontrol()` and brakes every motor |
+| autonomous | runs the program's own `autonomous()`, stopped when the period ends or on disable |
+| driver control | resumes `opcontrol()` where it was paused |
+| no match / released | nothing - practice driving works as before |
 
-static void stopEverything() { /* stop every motor / actuator */ }
-static void myAutonomous()   { /* your autonomous routine */ }
+It also shows `AUTO 0:25 ON` on the controller's top line, disables itself if it hears nothing for 2 s, and replies `FCS|...` status
+lines the website reads. It does not use the real competition state, so it works in any program slot.
 
-void initialize() {
-  fieldctl::init(stopEverything, myAutonomous);   // first thing: starts its own listener + supervisor
-}
-
-void opcontrol() {
-  while (true) {
-    if (!fieldctl::driverAllowed()) { pros::delay(10); continue; }   // top of the driver loop
-    // ... normal driving ...
-    pros::delay(10);
-  }
-}
-```
-Nothing changes until the first message arrives. After that the robot is DISABLED unless the match enables it, runs `myAutonomous()`
-once per autonomous period (killed on disable), allows joystick driving in an enabled driver period, shows `AUTO 0:25 ON` on the
-controller's top line, and disables itself if it hears nothing for 2 s. It replies `FCS|...` lines the relay reads. It does not use the real
-competition state, so it works in any program slot that includes the module.
+Limits: driving done somewhere other than `opcontrol()` (a task of its own) keeps running while disabled - such a program can check
+`fieldctl::driverAllowed()` itself. A program can also pass its own stop routine / autonomous with `fieldctl::init(stop, auton)`
+(`#include "fieldctl/fieldctl.hpp"`); programs written for version 1.0 (which needed both) keep working unchanged.
 
 **Releasing a new version of the library** (in `robot/`, PROS terminal): change `VERSION` in `robot/Makefile`, run `pros make template`,
 move the new `fieldctl@X.Y.Z.zip` into `robot/templates/`, add an entry for it to `robot/depot.json`, then commit and push.

@@ -5,10 +5,14 @@
 #include <cstring>
 #include <memory>
 
+// The kernel's own dispatcher: runs the program's autonomous() (see PROS user_functions.c).
+extern "C" void user_autonomous(void);
+
 namespace fieldctl {
 
 static const uint32_t kHeartbeatTimeoutMs = 2000; // no FC line this long -> disabled
 static const uint32_t kStatusIntervalMs = 500;
+static const char *kOpcontrolTask = "User Operator Control (PROS)"; // the kernel's opcontrol() task
 
 struct State {
   bool engaged = false;
@@ -20,8 +24,8 @@ struct State {
 };
 static State state;
 static pros::Mutex mtx;
-static std::function<void()> stopAll;
-static std::function<void()> autonFn;
+static std::function<void()> stopAll;  // set by init(); empty = brake every motor
+static std::function<void()> autonFn;  // set by init(); empty = the program's autonomous()
 
 static State snapshot() {
   mtx.take();
@@ -74,6 +78,39 @@ static void listenerTask(void *) {
   }
 }
 
+// Without init(): every motor port braked (each motor's own brake mode, so HOLD lifts stay up).
+static void stopMotors() {
+  if (stopAll) {
+    stopAll();
+    return;
+  }
+  for (uint8_t port = 1; port <= 21; port++)
+    pros::c::motor_brake(port); // ports without a motor just return an error
+}
+
+// The program's opcontrol() task is paused while the field doesn't allow driving, so the
+// driver loop needs no changes. Resumed exactly where it stopped.
+static pros::task_t pausedDriver = nullptr;
+
+static void pauseDriver() {
+  if (pausedDriver)
+    return;
+  pros::task_t t = pros::c::task_get_by_name(kOpcontrolTask);
+  if (t && t != pros::c::task_get_current()) {
+    pros::c::task_suspend(t);
+    pausedDriver = t;
+  }
+}
+
+static void resumeDriver() {
+  if (!pausedDriver)
+    return;
+  // Only if it is still the opcontrol task (the kernel replaces it if the competition state changes).
+  if (pros::c::task_get_by_name(kOpcontrolTask) == pausedDriver)
+    pros::c::task_resume(pausedDriver);
+  pausedDriver = nullptr;
+}
+
 static std::unique_ptr<pros::Task> autonTask;
 static std::atomic<bool> autonRunning{false};
 static int autonRunId = -1;
@@ -86,6 +123,8 @@ static void startAuton(int runId) {
       []() {
         if (autonFn)
           autonFn();
+        else
+          user_autonomous();
         autonRunning = false;
       },
       "fc auton");
@@ -99,7 +138,7 @@ static void killAuton() {
   }
   autonTask.reset();
   pros::delay(20);
-  stopAll();
+  stopMotors();
 }
 
 static void describe(const State &s, char *out, size_t n) {
@@ -122,6 +161,13 @@ static void supervisorTask(void *) {
     State s = snapshot();
     bool live = s.engaged && s.enabled && !signalLost(s);
     bool wantAuton = live && s.autoPeriod;
+    bool wantDriver = live && !s.autoPeriod;
+
+    // driver control: only in an enabled driver period, or when no match has the robot
+    if (s.engaged && !wantDriver)
+      pauseDriver();
+    else
+      resumeDriver();
 
     // autonomous: kill when it shouldn't run, start once per runId
     if (autonTask && (!wantAuton || s.runId != autonRunId))
@@ -133,11 +179,11 @@ static void supervisorTask(void *) {
     if ((wasLive && !live) || (wasEngaged && !s.engaged) || (!wasEngaged && s.engaged && !live)) {
       if (autonTask)
         killAuton();
-      stopAll();
+      stopMotors();
       printf("FIELD: %s\n", s.engaged ? "disabled" : "released");
     }
     if (s.engaged && !live)
-      stopAll();
+      stopMotors();
     wasLive = live;
     wasEngaged = s.engaged;
 
@@ -161,15 +207,26 @@ static void supervisorTask(void *) {
   }
 }
 
-void init(std::function<void()> stop, std::function<void()> autonomous) {
+static void start() {
   static bool started = false;
   if (started)
     return;
   started = true;
+  pros::c::task_create(listenerTask, nullptr, TASK_PRIORITY_DEFAULT, TASK_STACK_DEPTH_DEFAULT, "fc listener");
+  // Above the program's tasks, so a pause / brake can't be starved by a busy driver loop.
+  pros::c::task_create(supervisorTask, nullptr, TASK_PRIORITY_DEFAULT + 2, TASK_STACK_DEPTH_DEFAULT,
+                       "fc supervisor");
+}
+
+// Plug and play: starts with the program (after the kernel's own startup), no code needed.
+__attribute__((constructor)) static void autoStart() { start(); }
+
+void init(std::function<void()> stop, std::function<void()> autonomous) {
+  mtx.take();
   stopAll = std::move(stop);
   autonFn = std::move(autonomous);
-  pros::Task(listenerTask, nullptr, "fc listener");
-  pros::Task(supervisorTask, nullptr, "fc supervisor");
+  mtx.give();
+  start();
 }
 
 } // namespace fieldctl

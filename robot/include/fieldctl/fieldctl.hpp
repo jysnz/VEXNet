@@ -3,14 +3,17 @@
 // Install: pros c add-depot VEXNET <depot url>  then  pros c apply fieldctl   (see README)
 // Protocol: "FC ..." lines in, "FCS|..." lines out (the website / relay.py speak it).
 //
+// Plug and play: nothing to add to the program. Once applied, the library starts with the program and,
+// while a match has the robot:
+//   - disabled:   pauses the program's opcontrol() and brakes every motor
+//   - autonomous: runs the program's autonomous(), stopped when the period ends or on disable
+//   - driver:     resumes opcontrol() where it was paused
+// With no match it does nothing, so practice driving is unchanged.
+//
+// Optional, for programs that want to control it themselves:
 //   #include "fieldctl/fieldctl.hpp"
-//
-//   fieldctl::init(stopAll, autonomous);   // first thing in initialize()
-//   ...
-//   if (!fieldctl::driverAllowed()) { pros::delay(10); continue; }  // top of the driver loop
-//
-// init() starts its own stdin reader and supervisor task, so it works no
-// matter what the rest of the program does.
+//   fieldctl::init(stopAll, autonomous);   // own stop routine / autonomous instead of the defaults
+//   fieldctl::driverAllowed()              // e.g. for driving done in a task of its own
 #include <functional>
 
 namespace fieldctl {
