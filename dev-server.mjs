@@ -18,7 +18,7 @@ try {
   /* no .env.local: fine */
 }
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.mp3': 'audio/mpeg', '.css': 'text/css', '.json': 'application/json' };
+const types = { '.html': 'text/html', '.png': 'image/png', '.js': 'text/javascript', '.mp3': 'audio/mpeg', '.css': 'text/css', '.json': 'application/json' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);

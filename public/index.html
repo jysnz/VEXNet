@@ -5,80 +5,147 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14141a">
 <title>VEXNET Field Control</title>
+<link rel="icon" type="image/png" href="/favicon.png">
 <style>
-  :root { --bg:#14141a; --card:#161B22; --sel:#22303c; --cyan:#00F0FF; --orange:#FF8C00;
-          --green:#2ECC71; --red:#FF3131; --blue:#3B8BFF; --gray:#8a8a99; --dim:#3a3a46; --white:#e6e6e6; }
+  :root { --bg:#14141a; --card:#1b1f27; --bg2:#101015; --gold:#F2C230; --orange:#FF8C00;
+          --green:#2ECC71; --red:#FF3131; --blue:#3B8BFF; --gray:#9a9aab; --dim:#343442; --white:#ececf1; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; background:var(--bg); color:var(--white);
               font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  body { padding:14px 16px calc(18px + env(safe-area-inset-bottom)); max-width:1000px; margin:0 auto; }
+  body { padding:0 0 calc(24px + env(safe-area-inset-bottom)); }
+  main { max-width:1000px; margin-left:auto; margin-right:auto; }
+  .warn { width:calc(100% - 32px); max-width:968px; margin-left:auto; margin-right:auto; }
+  main { padding:16px 16px 0; }
   button, select, input { font:inherit; color:inherit; }
   button { border:0; border-radius:12px; cursor:pointer; touch-action:manipulation; }
   button:disabled { opacity:.4; cursor:not-allowed; }
-  h1 { margin:0; font-size:clamp(24px,6vw,36px); letter-spacing:1px; }
-  h2 { margin:0 0 8px; font-size:16px; color:var(--gray); text-transform:uppercase; letter-spacing:1px; }
-  .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
-  .top a { color:var(--gray); text-decoration:none; font-size:14px; }
-  .big { display:block; width:100%; padding:clamp(22px,6vw,40px) 16px; font-size:clamp(20px,5vw,30px); font-weight:800; background:var(--card); border:2px solid var(--dim); }
-  .big small { display:block; margin-top:6px; font-size:14px; font-weight:500; color:var(--gray); }
-  .big.go { background:var(--green); color:#0b0b0f; border-color:var(--green); } .big.go small { color:#0b3d1f; }
+  button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline:3px solid var(--gold); outline-offset:2px; }
+  h1 { margin:0 0 4px; font-size:clamp(24px,6vw,34px); letter-spacing:.5px; }
+  h2 { margin:0 0 10px; font-size:14px; color:var(--gray); text-transform:uppercase; letter-spacing:1.2px; }
+  .lead { color:var(--gray); margin:0 0 16px; }
+  .back { display:inline-flex; align-items:center; gap:6px; margin:0 0 12px; padding:8px 14px 8px 10px; border-radius:99px;
+          background:var(--card); border:1px solid var(--dim); color:var(--white); font-weight:600; font-size:14px; }
+  .back:hover { border-color:var(--gold); }
+
+  /* top bar: logo (home), where you are, this laptop, connection */
+  .bar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:12px; padding:8px 16px;
+         background:rgba(16,16,21,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--dim); }
+  .brand { display:flex; align-items:center; gap:10px; color:var(--white); text-decoration:none; flex:0 0 auto; }
+  .brand img { height:46px; width:auto; display:block; }
+  .brand b { display:block; font-size:17px; letter-spacing:1px; } .brand small { display:block; font-size:12px; color:var(--gray); }
+  .crumb { flex:1 1 auto; min-width:0; color:var(--gray); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .crumb a { color:var(--gray); text-decoration:none; } .crumb a:hover { color:var(--white); }
+  .crumb b { color:var(--white); }
+  .chip { flex:0 0 auto; display:flex; align-items:center; gap:7px; padding:7px 11px; border-radius:99px; background:var(--card);
+          border:1px solid var(--dim); font-size:13px; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--gray); flex:0 0 auto; }
+  .dot.ok { background:var(--green); } .dot.bad { background:var(--red); } .dot.warn { background:var(--orange); }
+  @media (max-width:640px) { .brand span, .crumb { display:none; } .bar { justify-content:space-between; } }
+
+  .panel { background:var(--card); border-radius:14px; padding:16px; }
   .stack { display:grid; gap:12px; }
+  .muted { color:var(--gray); font-size:14px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .between { justify-content:space-between; }
+
+  .big { display:block; width:100%; text-align:left; padding:clamp(20px,5vw,30px) 22px; font-size:clamp(20px,5vw,28px); font-weight:800;
+         background:var(--card); border:2px solid var(--dim); }
+  .big small { display:block; margin-top:6px; font-size:14px; font-weight:500; color:var(--gray); }
+  .big.primary { background:var(--gold); color:#16120a; border-color:var(--gold); } .big.primary small { color:#4a3b0a; }
+  .big:hover:not(:disabled) { border-color:var(--gold); }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:640px) { .actions { grid-template-columns:1fr; } }
+
+  .check { display:grid; gap:8px; }
+  .item { display:flex; align-items:center; gap:12px; padding:12px; background:var(--bg2); border-radius:12px; }
+  .item .ic { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-weight:800; flex:0 0 auto; background:var(--dim); }
+  .item.ok .ic { background:var(--green); color:#062b14; } .item.todo .ic { background:var(--orange); color:#2b1a00; }
+  .item div { flex:1; } .item b { display:block; } .item span { color:var(--gray); font-size:14px; }
+  @media (max-width:640px) { .item { flex-wrap:wrap; } .item div { flex-basis:calc(100% - 40px); } .item button { margin-left:40px; }
+                             .block { margin-left:-8px; margin-right:-8px; padding:8px; } }
+
   .types { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
   .type { text-align:left; padding:18px; background:var(--card); border:2px solid var(--dim); }
-  .type b { display:block; font-size:20px; } .type span { color:var(--gray); font-size:14px; }
-  .type:hover:not(:disabled) { border-color:var(--cyan); }
-  .panel { background:var(--card); border-radius:14px; padding:14px; }
-  .code { font-family:ui-monospace,Consolas,monospace; font-size:clamp(28px,8vw,44px); font-weight:800; letter-spacing:6px; color:var(--cyan); }
-  .muted { color:var(--gray); font-size:14px; }
-  .status { text-align:center; color:var(--gray); font-weight:700; font-size:clamp(15px,3.6vw,22px); margin:4px 0 0; min-height:1.4em; }
-  .clock { text-align:center; font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:clamp(84px,24vw,190px); line-height:1.05; margin:0; }
+  .type b { display:block; font-size:20px; margin-bottom:4px; } .type span { color:var(--gray); font-size:14px; }
+  .type em { display:inline-block; font-style:normal; font-size:12px; font-weight:700; padding:2px 8px; border-radius:99px; background:var(--dim); margin-bottom:8px; }
+  .type:hover:not(:disabled) { border-color:var(--gold); }
+
+  .code { font-family:ui-monospace,Consolas,monospace; font-size:clamp(28px,8vw,42px); font-weight:800; letter-spacing:6px; color:var(--gold); }
+  .small { padding:9px 13px; background:var(--dim); font-weight:700; font-size:14px; }
+  .small.gold { background:var(--gold); color:#16120a; } .small.red { background:var(--red); color:#0b0b0f; }
+  .small.ghost { background:transparent; border:1px solid var(--dim); color:var(--gray); }
+
+  /* the match guide */
+  .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  @media (max-width:640px) { .steps { grid-template-columns:1fr 1fr; } }
+  .step { padding:9px 10px; border-radius:10px; background:var(--bg2); font-size:13px; color:var(--gray); border:2px solid transparent; display:flex; align-items:center; gap:8px; }
+  .step i { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-weight:800; background:var(--dim); color:var(--white); flex:0 0 auto; }
+  .step.done { color:var(--white); } .step.done i { background:var(--green); color:#062b14; }
+  .step.now { border-color:var(--gold); color:var(--white); } .step.now i { background:var(--gold); color:#16120a; }
+  .next { display:flex; gap:10px; align-items:flex-start; margin-top:12px; font-size:16px; font-weight:600; }
+  .next .tag { flex:0 0 auto; font-size:12px; font-weight:800; padding:3px 9px; border-radius:99px; background:var(--gold); color:#16120a; margin-top:2px; }
+  .next small { display:block; font-weight:400; color:var(--gray); font-size:14px; margin-top:4px; }
+  .glow { animation:glow 1.4s ease-in-out infinite; }
+  @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(242,194,48,0); } 50% { box-shadow:0 0 0 5px rgba(242,194,48,.6); } }
+  @media (prefers-reduced-motion:reduce) { .glow { animation:none; box-shadow:0 0 0 4px rgba(242,194,48,.6); } }
+
+  .status { text-align:center; color:var(--gray); font-weight:700; font-size:clamp(15px,3.6vw,22px); margin:14px 0 0; min-height:1.4em; }
+  .clock { text-align:center; font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:clamp(84px,24vw,180px); line-height:1.05; margin:0; }
   .ctl { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; margin:8px 0 6px; }
   .ctl button { padding:18px 8px; font-weight:800; font-size:clamp(16px,4.2vw,22px); }
   .start { background:var(--green); color:#0b0b0f; } .stop { background:var(--red); color:#0b0b0f; } .reset { background:var(--dim); }
-  .blockers { color:var(--orange); font-size:14px; min-height:1.3em; margin:2px 2px 10px; }
-  .slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+  .referee { margin:4px 0 10px; }
+
+  .slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
   .slot { background:var(--card); border:3px solid; border-radius:14px; padding:12px; }
   .slot.red { border-color:var(--red); } .slot.blue { border-color:var(--blue); }
   .slot h3 { margin:0 0 6px; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
   .slot.red h3 { color:var(--red); } .slot.blue h3 { color:var(--blue); }
   .pill { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--dim); color:var(--white); font-weight:700; }
-  .pill.ok { background:var(--green); color:#0b0b0f; } .pill.on { background:var(--green); color:#0b0b0f; } .pill.off { background:var(--red); color:#0b0b0f; }
-  .st { font-family:ui-monospace,Consolas,monospace; font-size:13px; margin:6px 0; word-break:break-word; min-height:2.4em; }
-  select { width:100%; padding:10px; border-radius:10px; background:var(--bg); border:2px solid var(--dim); font-size:15px; }
-  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .row > * { flex:0 0 auto; }
-  .small { padding:9px 12px; background:var(--dim); font-weight:700; font-size:14px; }
-  .small.cyan { background:var(--cyan); color:#0b0b0f; } .small.red { background:var(--red); color:#0b0b0f; }
-  .laptops { display:grid; gap:8px; margin-top:6px; }
-  .laptop { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:var(--bg); border-radius:10px; }
+  .pill.ok, .pill.on { background:var(--green); color:#0b0b0f; } .pill.off { background:var(--red); color:#0b0b0f; } .pill.wait { background:var(--orange); color:#2b1a00; }
+  .st { font-size:14px; margin:6px 0 8px; word-break:break-word; min-height:2.4em; color:var(--gray); }
+  select { width:100%; padding:10px; border-radius:10px; background:var(--bg2); border:2px solid var(--dim); font-size:15px; }
+  .section { margin-top:22px; }
+  .block { padding:12px; margin-left:-14px; margin-right:-14px; border:2px solid transparent; border-radius:14px; }
+  .block.hint { border-color:var(--gold); }
+  .laptops { display:grid; gap:8px; }
+  .laptop { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 12px; background:var(--bg2); border-radius:10px; }
+
   input.codein { width:100%; font-size:clamp(28px,8vw,40px); text-align:center; letter-spacing:8px; padding:14px; border-radius:12px;
                  border:2px solid var(--dim); background:var(--card); text-transform:uppercase; font-family:ui-monospace,Consolas,monospace; }
   .err { color:var(--red); min-height:1.3em; margin:8px 0; }
-  .warn { background:#3a2a10; color:var(--orange); border-radius:10px; padding:8px 12px; margin-bottom:10px; font-size:13px; display:none; }
-  .foot { margin-top:16px; color:var(--gray); font-size:13px; display:flex; gap:8px; align-items:center; }
-  .conn { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--red); } .conn.ok { background:var(--green); }
+  .warn { background:#3a2a10; color:var(--orange); border-radius:10px; padding:8px 12px; margin-top:10px; font-size:13px; display:none; }
+
   #pin { position:fixed; inset:0; background:rgba(10,10,15,.96); display:none; align-items:center; justify-content:center; z-index:10; padding:20px; }
   #pin.show { display:flex; }
   #pin form { background:var(--card); padding:24px; border-radius:16px; width:100%; max-width:340px; text-align:center; }
+  #pin img { height:64px; }
   #pin input { width:100%; font-size:28px; text-align:center; letter-spacing:6px; padding:12px; border-radius:10px; border:2px solid var(--dim); background:var(--bg); margin:14px 0; }
-  #pin button { width:100%; padding:14px; background:var(--cyan); color:#0b0b0f; font-weight:800; font-size:18px; }
-  #pin p { margin:0; color:var(--gray); }
-  #usb { margin-top:18px; }
-  #usb input { padding:9px 10px; border-radius:10px; border:2px solid var(--dim); background:var(--bg); font-size:15px; width:12em; }
-  .ctrl { display:flex; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--bg); border-radius:10px; font-size:14px; }
+  #pin button { width:100%; padding:14px; background:var(--gold); color:#16120a; font-weight:800; font-size:18px; }
+  #pin p { margin:4px 0 0; color:var(--gray); }
+
+  #usb { width:calc(100% - 32px); max-width:968px; margin:28px auto 0; scroll-margin-top:80px; }
+  #usb input { padding:9px 10px; border-radius:10px; border:2px solid var(--dim); background:var(--bg2); font-size:15px; width:12em; }
+  .ctrl { display:flex; justify-content:space-between; gap:10px; padding:10px 12px; background:var(--bg2); border-radius:10px; font-size:14px; }
   .ctrl b { font-family:ui-monospace,Consolas,monospace; }
   .usbnote { color:var(--orange); font-size:14px; min-height:1.2em; margin-top:8px; }
 </style>
 </head>
 <body>
+<header class="bar">
+  <a class="brand" href="#/" title="Home"><img src="/qcu-robotics-logo.png" alt="QCU Robotics"><span><b>VEXNET</b><small>Field Control</small></span></a>
+  <nav class="crumb" id="crumb" aria-label="You are here"></nav>
+  <button class="chip" id="laptopChip" title="This laptop's controllers"><span class="dot" id="laptopDot"></span><span id="laptopText">This laptop</span></button>
+  <span class="dot" id="conn" title="connecting"></span>
+</header>
 <div class="warn" id="warn">Storage is in memory: set up Upstash Redis (see README) or matches can disappear between requests.</div>
-<div id="app"></div>
-<div class="panel" id="usb"></div>
-<div class="foot"><span class="conn" id="conn"></span><span id="connText">connecting</span></div>
+<main id="app"></main>
+<section class="panel" id="usb"></section>
 
 <div id="pin"><form id="pinForm">
+  <img src="/qcu-robotics-logo.png" alt="QCU Robotics">
   <p><b>VEXNET Field Control</b></p><p>Enter the control PIN</p>
-  <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
+  <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN">
   <button type="submit">Unlock</button><div class="err" id="pinErr"></div>
 </form></div>
 
@@ -99,8 +166,13 @@ function h(tag, attrs, ...kids) {
   for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
   return el;
 }
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
+  set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} },
+};
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-let pin = ""; try { pin = localStorage.getItem("vexnetPin") || ""; } catch (e) {}
+let pin = store.get("vexnetPin");
 let pinResolve = null;
 function askPin(msg) {
   $("pin").classList.add("show"); $("pinErr").textContent = msg || ""; $("pinInput").focus();
@@ -108,7 +180,7 @@ function askPin(msg) {
 }
 $("pinForm").addEventListener("submit", (e) => {
   e.preventDefault(); pin = $("pinInput").value.trim();
-  try { localStorage.setItem("vexnetPin", pin); } catch (e2) {}
+  store.set("vexnetPin", pin);
   $("pinInput").value = ""; $("pin").classList.remove("show"); audioUnlock();
   if (pinResolve) pinResolve(pin), pinResolve = null;
 });
@@ -119,7 +191,7 @@ async function post(body, needsPin = true) {
     if (needsPin && !pin) await askPin("");
     const r = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json", "X-Pin": pin }, body: JSON.stringify(body) });
     const data = await r.json().catch(() => ({}));
-    if (r.status === 401) { pin = ""; try { localStorage.removeItem("vexnetPin"); } catch (e) {} await askPin("Wrong PIN"); continue; }
+    if (r.status === 401) { pin = ""; store.set("vexnetPin", ""); await askPin("Wrong PIN"); continue; }
     return { ok: r.ok, data };
   }
   return { ok: false, data: { error: "PIN rejected" } };
@@ -152,15 +224,31 @@ function sounds(m) {
   prev = m;
 }
 
-// ─── Routing ────────────────────────────────────────────────────────────────
+// ─── Top bar ────────────────────────────────────────────────────────────────
 let timer = null, lastOk = 0;
-function setConn(ok, t) { $("conn").classList.toggle("ok", ok); $("connText").textContent = t; }
+function setConn(ok, t) { const d = $("conn"); d.className = "dot " + (ok ? "ok" : "bad"); d.title = "Server: " + t; }
+// crumbs: [[label, href], ..., [current]]
+function setCrumb(...parts) {
+  $("crumb").replaceChildren(...parts.flatMap(([label, href], i) =>
+    [i ? " › " : "", href ? h("a", { href }, label) : h("b", {}, label)]));
+}
+$("laptopChip").addEventListener("click", () => $("usb").scrollIntoView({ behavior: "smooth" }));
+
 function stopPolling() { if (timer) clearInterval(timer); timer = null; }
 function go(hash) { location.hash = hash; }
 window.addEventListener("hashchange", route);
 
+let refreshHome = null; // redraws the home checklist when this laptop's controllers change
+// "← Back": to the page this one was opened from in the app, or to Home when it was opened directly (a join link).
+let pagesSeen = 0;
+function backButton() {
+  return h("button", { class: "back", onclick: () => (pagesSeen > 1 ? history.back() : go("#/")) },
+    "← ", pagesSeen > 1 ? "Back" : "Home");
+}
+
 function route() {
-  stopPolling(); prev = null;
+  pagesSeen++;
+  stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0);
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   if (parts[0] === "create") return viewCreate();
   if (parts[0] === "join") return viewJoin(parts[1] || "");
@@ -168,51 +256,86 @@ function route() {
   viewHome();
 }
 
-function header(title, back) {
-  return h("div", { class: "top" }, h("h1", {}, title), back ? h("a", { href: back }, "← back") : null);
-}
-
 // ─── Home ───────────────────────────────────────────────────────────────────
 function viewHome() {
+  setCrumb(["Home"]);
+  const check = h("div", { class: "check" });
+  const online = h("p", { class: "muted", style: "margin:12px 0 0" });
+  const back = h("div", {});
+  const last = store.get("vexnetLastMatch");
+  if (last) {
+    get("/api/match?code=" + last).then((r) => {
+      if (!r.ok) return store.set("vexnetLastMatch", "");
+      back.replaceChildren(h("button", { class: "big", style: "margin-bottom:12px", onclick: () => go("#/m/" + last) },
+        `Back to your match · ${last}`, h("small", {}, `${r.data.typeTitle} — ${r.data.started ? r.data.status.toLowerCase() : "waiting to start"}`)));
+    }).catch(() => {});
+  }
   app.replaceChildren(
-    header("VEXNET Field Control"),
-    h("div", { class: "stack" },
-      h("button", { class: "big go", onclick: () => go("#/create") }, "Create match", h("small", {}, "Skills Challenge, 1v1 or 2v2")),
-      h("button", { class: "big", onclick: () => go("#/join") }, "Join match", h("small", {}, "Enter the code from the host's screen"))),
-    h("p", { class: "muted", id: "relayInfo" }, "")
-  );
-  const refresh = async () => {
-    try { const { data } = await get("/api/relays"); lastOk = Date.now(); setConn(true, "connected");
-      const el = $("relayInfo"); if (el) el.textContent = data.relays.length
-        ? "Laptops online: " + data.relays.map((r) => `${r.name} (${r.ports.length} controller${r.ports.length === 1 ? "" : "s"})`).join(", ")
-        : "No laptops online yet. On each laptop with controllers, press Connect controller below (Chrome or Edge).";
-    } catch (e) { if (Date.now() - lastOk > 3000) setConn(false, "no connection to the server"); }
+    h("h1", {}, "Field control"),
+    h("p", { class: "lead" }, "Run a scrimmage: create a match on one device, connect the laptops with the controllers, then start it."),
+    back,
+    h("div", { class: "actions" },
+      h("button", { class: "big primary", onclick: () => go("#/create") }, "Create match", h("small", {}, "You're the host: Skills, 1 v 1 or 2 v 2")),
+      h("button", { class: "big", onclick: () => go("#/join") }, "Join match", h("small", {}, "Type the 6-character code from the host's screen"))),
+    h("div", { class: "panel section" }, h("h2", {}, "Before a match — this laptop"), check, online));
+
+  let laptops = [];
+  refreshHome = () => {
+    const cs = usb.supported ? usb.controllers() : [];
+    const replying = cs.filter((c) => c.ok).length;
+    const items = [];
+    if (!usb.supported) {
+      items.push(["info", "Controllers connect on a laptop", "This browser can host or watch. On the laptop with the controllers, open this site in Chrome or Edge."]);
+    } else {
+      items.push(cs.length
+        ? ["ok", plural(cs.length, "controller") + " connected", cs.map((c) => c.name).join(", ") + ` · shown as ${usb.name}`]
+        : ["todo", "Connect this laptop's controllers", "Plug them in by USB, then press Connect controller at the bottom of the page.", "Connect controller", () => usb.connect().catch(() => {})]);
+      if (cs.length) items.push(replying === cs.length
+        ? ["ok", "Robots replying", `${replying} of ${cs.length} ready for field control`]
+        : ["todo", `Robots replying: ${replying} of ${cs.length}`, "Turn each robot on and run its program (built with the fieldctl library, VEXNET on)."]);
+    }
+    check.replaceChildren(...items.map(([state, title, text, btn, fn]) => h("div", { class: "item " + state },
+      h("span", { class: "ic" }, state === "ok" ? "✓" : state === "todo" ? "!" : "i"),
+      h("div", {}, h("b", {}, title), h("span", {}, text)),
+      btn ? h("button", { class: "small gold", onclick: fn }, btn) : null)));
+    online.textContent = laptops.length
+      ? "Laptops online: " + laptops.map((r) => `${r.name} (${plural(r.ports.length, "controller")})`).join(", ")
+      : "No laptops online yet.";
   };
-  refresh(); timer = setInterval(refresh, 2000);
+  const poll = async () => {
+    try { const { data } = await get("/api/relays"); laptops = data.relays; lastOk = Date.now(); setConn(true, "connected"); }
+    catch (e) { if (Date.now() - lastOk > 3000) setConn(false, "no connection"); }
+    refreshHome?.();
+  };
+  refreshHome(); poll(); timer = setInterval(poll, 2000);
 }
 
 // ─── Create ─────────────────────────────────────────────────────────────────
 const TYPE_CARDS = [
-  ["SKILLS_AUTO", "Skills Challenge", "Autonomous - one robot, 60 s"],
-  ["SKILLS_DRIVER", "Skills Challenge", "Driver control - one robot, 60 s"],
-  ["M1V1", "1 v 1", "Red vs blue. Autonomous 30 s, then driver control 90 s"],
-  ["M2V2", "2 v 2", "Two robots a side, usually two laptops. Autonomous 30 s, then driver control 90 s"],
+  ["SKILLS_DRIVER", "Skills - Driver", "1 robot", "60 s of driver control. Good first test."],
+  ["SKILLS_AUTO", "Skills - Autonomous", "1 robot", "60 s of the robot's own autonomous."],
+  ["M1V1", "1 v 1", "2 robots", "Red vs blue. Autonomous 30 s, then driver control 90 s."],
+  ["M2V2", "2 v 2", "4 robots", "Two robots a side, usually two laptops. Autonomous 30 s, then driver control 90 s."],
 ];
 function viewCreate() {
+  setCrumb(["Home", "#/"], ["Create match"]);
   const err = h("div", { class: "err" });
-  const cards = TYPE_CARDS.map(([type, title, desc]) =>
+  const cards = TYPE_CARDS.map(([type, title, robots, desc]) =>
     h("button", { class: "type", onclick: async (e) => {
-      e.currentTarget.disabled = true; err.textContent = "";
+      const btn = e.currentTarget; btn.disabled = true; err.textContent = "";
       const { ok, data } = await post({ action: "create", type });
-      if (ok) go("#/m/" + data.code); else { err.textContent = data.error || "could not create the match"; e.target.closest("button").disabled = false; }
-    } }, h("b", {}, title), h("span", {}, desc)));
-  app.replaceChildren(header("Create match", "#/"), h("p", { class: "muted" }, "Choose the match type."), h("div", { class: "types" }, cards), err);
+      if (ok) go("#/m/" + data.code); else { err.textContent = data.error || "could not create the match"; btn.disabled = false; }
+    } }, h("em", {}, robots), h("b", {}, title), h("span", {}, desc)));
+  app.replaceChildren(backButton(), h("h1", {}, "Create match"),
+    h("p", { class: "lead" }, "Pick the match type. You'll get a code that the laptops with controllers use to join. Needs the control PIN."),
+    h("div", { class: "types" }, cards), err);
   setConn(true, "ready");
 }
 
 // ─── Join ───────────────────────────────────────────────────────────────────
 function viewJoin(prefill) {
-  const input = h("input", { class: "codein", maxlength: 6, placeholder: "CODE", autocomplete: "off", value: prefill });
+  setCrumb(["Home", "#/"], ["Join match"]);
+  const input = h("input", { class: "codein", maxlength: 6, placeholder: "CODE", autocomplete: "off", value: prefill, "aria-label": "Match code" });
   const err = h("div", { class: "err" });
   const box = h("div", {});
   async function find() {
@@ -220,80 +343,123 @@ function viewJoin(prefill) {
     const code = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (code.length < 6) { err.textContent = "The code has 6 characters."; return; }
     const m = await get("/api/match?code=" + code);
-    if (!m.ok) { err.textContent = m.data.error || "no match with that code"; return; }
+    if (!m.ok) { err.textContent = m.data.error || "No match with that code."; return; }
     const { data } = await get("/api/relays");
     const free = data.relays.filter((r) => !m.data.joined.includes(r.name))
       .sort((a, b) => (b.name === usb.name) - (a.name === usb.name));   // this browser's own controllers first
-    box.replaceChildren(
-      h("p", {}, h("b", {}, m.data.typeTitle), " - tap this laptop to join:"),
+    box.replaceChildren(h("div", { class: "panel" },
+      h("h2", {}, `Found: ${m.data.typeTitle}`),
+      h("p", { style: "margin:0 0 10px" }, "Which laptop has the controllers for this match?"),
       h("div", { class: "laptops" }, free.length ? free.map((r) => h("div", { class: "laptop" },
-        h("span", {}, h("b", {}, r.name), "  ", h("span", { class: "muted" }, `${r.ports.length} controller${r.ports.length === 1 ? "" : "s"}: ${r.ports.join(", ") || "none"}`)),
-        h("button", { class: "small cyan", onclick: async () => {
+        h("span", {}, h("b", {}, r.name), r.name === usb.name ? h("span", { class: "muted" }, " (this laptop)") : null,
+          h("br"), h("span", { class: "muted" }, `${plural(r.ports.length, "controller")}: ${r.ports.join(", ") || "none"}`)),
+        h("button", { class: "small gold", onclick: async () => {
           const j = await post({ action: "join", code, relay: r.name }, false);
-          if (j.ok) { try { localStorage.setItem("vexnetRelay", r.name); } catch (e) {} go("#/m/" + code); } else err.textContent = j.data.error;
-        } }, "This laptop"))) : h("p", { class: "muted" }, "No free laptops online. Connect this laptop's controllers below (or run relay.py), then press Find again.")),
-      h("button", { class: "small", style: "margin-top:10px", onclick: () => go("#/m/" + code) }, "Just watch the match"));
+          if (j.ok) { store.set("vexnetRelay", r.name); go("#/m/" + code); } else err.textContent = j.data.error;
+        } }, "Join with this laptop"))) : h("p", { class: "muted" }, "No free laptop is online. Connect this laptop's controllers (bottom of the page), then press Find match again.")),
+      h("button", { class: "small ghost", style: "margin-top:12px", onclick: () => go("#/m/" + code) }, "Just watch the match")));
   }
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
-  app.replaceChildren(header("Join match", "#/"), h("div", { class: "stack" }, input, h("button", { class: "big go", onclick: find }, "Find match"), err, box));
+  app.replaceChildren(backButton(), h("h1", {}, "Join match"), h("p", { class: "lead" }, "Type the code shown on the host's screen."),
+    h("div", { class: "stack" }, input, h("button", { class: "big primary", style: "text-align:center", onclick: find }, "Find match"), err, box));
   setConn(true, "ready"); input.focus(); if (prefill) find();
 }
 
 // ─── Match (lobby + live) ───────────────────────────────────────────────────
+// What to do next, from the match state: the step tracker, the sentence, and which button to point at.
+function guide(m) {
+  const steps = ["Laptop joined", "Controllers assigned", "Robots ready", "Start"];
+  const joined = m.joined.length > 0;
+  const assigned = m.slots.every((s) => s.relay);
+  const ready = m.slots.every((s) => s.ready);
+  let now = !joined ? 0 : !assigned ? 1 : !ready ? 2 : 3;
+  let text, sub = "", target;
+  if (m.phase === "countdown" || m.phase === "running") {
+    now = 4; text = m.phase === "countdown" ? "Get ready - the match is about to start." : `Match running: ${m.status.toLowerCase()}.`;
+    sub = "STOP ends it early. The referee buttons disable one alliance."; target = null;
+  } else if (m.phase === "ended" || m.phase === "stopped") {
+    now = 4; text = "Match over."; sub = "Press RESET to set up the next one (same robots, same code)."; target = "reset";
+  } else if (now === 0) {
+    target = "laptops";
+    text = m.relays.length ? "Join the laptop that has the controllers." : "No laptop with controllers is online yet.";
+    sub = m.relays.length ? "Press Join next to it under Laptops." : "On that laptop, open this site in Chrome or Edge and press Connect controller (bottom of the page).";
+  } else if (now === 1) {
+    target = "auto"; text = "Give each robot a controller."; sub = "Press Auto-assign controllers, or pick one in each robot's list.";
+  } else if (now === 2) {
+    const s = m.slots.find((x) => !x.ready);
+    target = "slots"; text = `${s.label} isn't ready: ${s.status}.`;
+    sub = "Turn the robot on and run its program (VEXNET on). Its controller must be paired to it.";
+  } else {
+    target = "start"; text = "Everything is ready."; sub = "Press START MATCH.";
+  }
+  return { steps, now, text, sub, target };
+}
+
 function viewMatch(code) {
-  let built = false, last = null;
+  setCrumb(["Home", "#/"], ["Match " + code]);
+  let built = false;
   const el = {};
 
   async function act(body) {
     const { ok, data } = await post({ ...body, code });
     if (!ok) { el.err.textContent = data.error + (data.blockers && data.blockers.length > 1 ? " (+" + (data.blockers.length - 1) + " more)" : ""); return; }
-    el.err.textContent = ""; if (data.closed) return go("#/"); render(data);
+    el.err.textContent = ""; if (data.closed) { store.set("vexnetLastMatch", ""); return go("#/"); } render(data);
   }
 
   function build(m) {
     el.title = h("h1", {}, m.typeTitle);
     el.code = h("div", { class: "code" }, m.code);
     el.share = h("button", { class: "small", onclick: () => { navigator.clipboard?.writeText(location.origin + "/#/join/" + code); el.share.textContent = "Link copied"; setTimeout(() => el.share.textContent = "Copy join link", 1500); } }, "Copy join link");
+    el.steps = h("div", { class: "steps" }); el.next = h("div", { class: "next" });
     el.status = h("p", { class: "status" }); el.clock = h("p", { class: "clock" });
     el.start = h("button", { class: "start", onclick: () => act({ action: "start" }) }, "START MATCH");
     el.stop = h("button", { class: "stop", onclick: () => act({ action: "stop" }) }, "STOP");
     el.reset = h("button", { class: "reset", onclick: () => act({ action: "reset" }) }, "RESET");
-    el.blockers = h("div", { class: "blockers" }); el.err = h("div", { class: "err" });
+    el.err = h("div", { class: "err" });
     el.refereeRed = h("button", { class: "small", onclick: () => act({ action: "toggle", alliance: "red" }) });
     el.refereeBlue = h("button", { class: "small", onclick: () => act({ action: "toggle", alliance: "blue" }) });
+    el.referee = h("div", { class: "row referee" }, h("span", { class: "muted" }, "Referee:"), el.refereeRed, el.refereeBlue);
     el.slots = h("div", { class: "slots" });
     el.laptops = h("div", { class: "laptops" });
-    el.auto = h("button", { class: "small cyan", onclick: () => act({ action: "autoassign" }) }, "Auto-assign controllers");
-    el.close = h("button", { class: "small red", onclick: () => { if (confirm("Close this match? Its code stops working.")) act({ action: "close" }); } }, "Close match");
-    app.replaceChildren(
-      h("div", { class: "top" }, el.title, h("a", { href: "#/" }, "← home")),
-      h("div", { class: "panel", style: "margin-bottom:12px" }, h("div", { class: "row", style: "justify-content:space-between" },
-        h("div", {}, h("div", { class: "muted" }, "Match code - the other laptop types this to join"), el.code), el.share)),
+    el.auto = h("button", { class: "small gold", onclick: () => act({ action: "autoassign" }) }, "Auto-assign controllers");
+    el.close = h("button", { class: "small ghost", onclick: () => { if (confirm("Close this match? Its code stops working.")) act({ action: "close" }); } }, "Close match");
+    el.robotsSec = h("div", { class: "section block" }, h("div", { class: "row between", style: "margin-bottom:10px" }, h("h2", { style: "margin:0" }, "Robots"), el.auto), el.slots);
+    el.laptopsSec = h("div", { class: "section block" }, h("h2", {}, "Laptops"), el.laptops);
+    app.replaceChildren(backButton(),
+      h("div", { class: "row between", style: "margin-bottom:12px" },
+        h("div", {}, el.title, h("div", { class: "muted" }, "Other laptops join with this code")),
+        h("div", { class: "row" }, el.code, el.share)),
+      h("div", { class: "panel" }, el.steps, el.next),
       el.status, el.clock,
       h("div", { class: "ctl" }, el.start, el.stop, el.reset),
-      el.blockers,
-      h("div", { class: "row", style: "margin-bottom:12px" }, h("span", { class: "muted" }, "Referee:"), el.refereeRed, el.refereeBlue),
-      el.err,
-      h("h2", {}, "Robots"), el.slots,
-      h("div", { class: "row", style: "margin:14px 0 6px; justify-content:space-between" }, h("h2", { style: "margin:0" }, "Laptops online"), el.auto),
-      el.laptops,
-      h("div", { style: "margin-top:16px" }, el.close));
+      el.referee, el.err,
+      el.robotsSec, el.laptopsSec,
+      h("div", { class: "section" }, el.close));
     built = true;
   }
 
   function render(m) {
-    last = m;
     if (!built) build(m);
+    store.set("vexnetLastMatch", m.code);
+    setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
+
+    // guide
+    const g = guide(m);
+    el.steps.replaceChildren(...g.steps.map((label, i) =>
+      h("div", { class: "step " + (i < g.now ? "done" : i === g.now ? "now" : "") }, h("i", {}, i < g.now ? "✓" : String(i + 1)), label)));
+    el.next.replaceChildren(h("span", { class: "tag" }, g.now >= 4 ? "NOW" : "NEXT"), h("div", {}, g.text, g.sub ? h("small", {}, g.sub) : null));
+    const targets = { start: el.start, reset: el.reset, auto: el.auto, laptops: el.laptopsSec, slots: el.robotsSec };
+    for (const [k, node] of Object.entries(targets)) node.classList.toggle(k === "laptops" || k === "slots" ? "hint" : "glow", g.target === k);
+
     el.status.textContent = m.status;
     el.clock.textContent = m.clockText; el.clock.style.color = m.clockColor;
-    const idle = !m.started, live = m.phase === "countdown" || m.phase === "running";
+    const live = m.phase === "countdown" || m.phase === "running";
     el.start.disabled = !m.canStart; el.stop.disabled = !live; el.reset.disabled = !m.canReset;
-    el.start.textContent = m.phase === "ended" || m.phase === "stopped" ? "START AGAIN (reset first)" : "START MATCH";
-    el.blockers.textContent = idle && m.blockers.length ? "Not ready: " + m.blockers.join("  ·  ") : "";
+    el.start.textContent = m.phase === "ended" || m.phase === "stopped" ? "RESET FIRST" : "START MATCH";
+    el.auto.style.display = m.started ? "none" : "";
+    el.referee.style.display = m.phase === "running" ? "" : "none";
     for (const [a, btn] of [["red", el.refereeRed], ["blue", el.refereeBlue]]) {
-      const hasAlliance = m.slots.some((s) => s.alliance === a);
-      btn.style.display = hasAlliance ? "" : "none";
-      btn.disabled = m.phase !== "running";
+      btn.style.display = m.slots.some((s) => s.alliance === a) ? "" : "none";
       btn.textContent = m.overrides[a] ? `Enable ${a.toUpperCase()}` : `Disable ${a.toUpperCase()}`;
     }
     // Robots: rebuilt only when something changed, so a dropdown being used isn't closed under the finger.
@@ -303,25 +469,26 @@ function viewMatch(code) {
     if (sig !== el.sig && !(el.slots.contains(document.activeElement) && document.activeElement.tagName === "SELECT")) {
       el.sig = sig;
       el.slots.replaceChildren(...m.slots.map((s) => {
-        const sel = h("select", { disabled: m.started, onchange: (e) => {
+        const sel = h("select", { disabled: m.started, "aria-label": `Controller for ${s.label}`, onchange: (e) => {
           const v = e.target.value;
           if (!v) return act({ action: "assign", slot: s.slot, clear: true });
           const [relay, port] = JSON.parse(v); act({ action: "assign", slot: s.slot, relay, port });
-        } }, h("option", { value: "" }, "- no controller -"),
+        } }, h("option", { value: "" }, "- choose a controller -"),
           options.map((o) => h("option", { value: JSON.stringify([o.relay, o.port]), selected: o.relay === s.relay && o.port === s.port }, `${o.relay} · ${o.port}`)));
+        const pill = m.started ? (m.enabled[s.alliance] ? ["on", "ENABLED"] : ["off", "DISABLED"]) : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
         return h("div", { class: "slot " + s.alliance },
-          h("h3", {}, s.label, h("span", { class: "pill " + (m.started ? (m.enabled[s.alliance] ? "on" : "off") : (s.ready ? "ok" : "")) },
-            m.started ? (m.enabled[s.alliance] ? "ENABLED" : "DISABLED") : (s.ready ? "READY" : "not ready"))),
+          h("h3", {}, s.label, h("span", { class: "pill " + pill[0] }, pill[1])),
           h("div", { class: "st" }, s.status), sel);
       }));
     }
-    const lsig = JSON.stringify(m.relays);
+    const lsig = JSON.stringify([m.relays, m.started]);
     if (lsig !== el.lsig) {
       el.lsig = lsig;
       el.laptops.replaceChildren(...(m.relays.length ? m.relays.map((r) => h("div", { class: "laptop" },
-        h("span", {}, h("b", {}, r.name), "  ", h("span", { class: "muted" }, r.ports.join(", ") || "no controllers")),
-        r.joined ? h("span", { class: "pill ok" }, "joined") : h("button", { class: "small", disabled: m.started, onclick: () => act({ action: "join", relay: r.name }) }, "Join")))
-        : [h("p", { class: "muted" }, "No laptops online. On each laptop with controllers, press Connect controller below (Chrome or Edge).")]));
+        h("span", {}, h("b", {}, r.name), r.name === usb.name ? h("span", { class: "muted" }, " (this laptop)") : null,
+          h("br"), h("span", { class: "muted" }, r.ports.length ? plural(r.ports.length, "controller") + ": " + r.ports.join(", ") : "no controllers")),
+        r.joined ? h("span", { class: "pill ok" }, "JOINED") : h("button", { class: "small gold", disabled: m.started, onclick: () => act({ action: "join", relay: r.name }) }, "Join")))
+        : [h("p", { class: "muted", style: "margin:0" }, "No laptops online. On each laptop with controllers, open this site in Chrome or Edge and press Connect controller.")]));
     }
     $("warn").style.display = m.storage === "memory" ? "block" : "none";
     sounds(m);
@@ -330,9 +497,14 @@ function viewMatch(code) {
   async function poll() {
     try {
       const r = await get("/api/match?code=" + code);
-      if (r.status === 404) { stopPolling(); app.replaceChildren(header("Match not found", "#/"), h("p", { class: "muted" }, "That match was closed or the code is wrong.")); return; }
+      if (r.status === 404) {
+        stopPolling(); if (store.get("vexnetLastMatch") === code) store.set("vexnetLastMatch", "");
+        app.replaceChildren(backButton(), h("h1", {}, "Match not found"), h("p", { class: "lead" }, "That match was closed or the code is wrong."),
+          h("button", { class: "small gold", onclick: () => go("#/") }, "Go home"));
+        return;
+      }
       lastOk = Date.now(); setConn(true, "connected"); render(r.data);
-    } catch (e) { if (Date.now() - lastOk > 2500) setConn(false, "no connection to the server"); }
+    } catch (e) { if (Date.now() - lastOk > 2500) setConn(false, "no connection"); }
   }
   app.replaceChildren(h("p", { class: "muted" }, "Loading match " + code + "..."));
   poll(); timer = setInterval(poll, 300);
@@ -348,23 +520,28 @@ function buildUsb() {
       h("p", { class: "muted", style: "margin:0" }, "To use controllers plugged into this laptop, open this page in Chrome or Edge on it (or run relay.py)."));
     return;
   }
-  usbEl.name = h("input", { value: usb.name, maxlength: 30, title: "How this laptop is shown in matches",
-    onchange: (e) => { usb.setName(e.target.value); e.target.value = usb.name; } });
+  usbEl.name = h("input", { value: usb.name, maxlength: 30, "aria-label": "Laptop name", title: "How this laptop is shown in matches",
+    onchange: (e) => { usb.setName(e.target.value); e.target.value = usb.name; renderUsb(true); } });
   usbEl.list = h("div", { class: "laptops" });
   usbEl.note = h("div", { class: "usbnote" });
   usbEl.pin = h("button", { class: "small", style: "display:none", onclick: () => askPin("") }, "Enter PIN");
   box.replaceChildren(
-    h("div", { class: "row", style: "justify-content:space-between; margin-bottom:8px" },
+    h("div", { class: "row between", style: "margin-bottom:10px" },
       h("h2", { style: "margin:0" }, "This laptop's controllers"),
       h("div", { class: "row" }, h("span", { class: "muted" }, "Laptop name"), usbEl.name,
-        h("button", { class: "small cyan", onclick: () => usb.connect().catch(() => {}) }, "Connect controller"))),
+        h("button", { class: "small gold", onclick: () => usb.connect().catch(() => {}) }, "Connect controller"))),
     usbEl.list, h("div", { class: "row" }, usbEl.note, usbEl.pin));
 }
-function renderUsb() {
+function renderUsb(force) {
+  // top-bar chip
+  const cs = usb.supported ? usb.controllers() : [];
+  const ok = cs.filter((c) => c.ok).length;
+  $("laptopDot").className = "dot " + (!cs.length ? "" : ok === cs.length && usb.online() ? "ok" : "warn");
+  $("laptopText").textContent = usb.supported ? (cs.length ? `${usb.name} · ${plural(cs.length, "controller")}` : "No controllers") : "Watching";
+  refreshHome?.();
   if (!usb.supported) return;
-  const cs = usb.controllers();
   const sig = JSON.stringify([cs, usb.note(), usb.online()]);
-  if (sig === usbEl.sig) return;
+  if (sig === usbEl.sig && !force) return;
   usbEl.sig = sig;
   usbEl.list.replaceChildren(...(cs.length ? cs.map((c) => h("div", { class: "ctrl" },
       h("span", {}, h("b", {}, c.name), "  ", h("span", { class: "muted" }, c.slot || "not in a match")),
