@@ -207,26 +207,45 @@ static void supervisorTask(void *) {
   }
 }
 
-static void start() {
-  static bool started = false;
-  if (started)
+static std::atomic<bool> started{false};
+
+static void startTasks() {
+  if (started.exchange(true))
     return;
-  started = true;
   pros::c::task_create(listenerTask, nullptr, TASK_PRIORITY_DEFAULT, TASK_STACK_DEPTH_DEFAULT, "fc listener");
   // Above the program's tasks, so a pause / brake can't be starved by a busy driver loop.
   pros::c::task_create(supervisorTask, nullptr, TASK_PRIORITY_DEFAULT + 2, TASK_STACK_DEPTH_DEFAULT,
                        "fc supervisor");
 }
 
-// Plug and play: starts with the program (after the kernel's own startup), no code needed.
-__attribute__((constructor)) static void autoStart() { start(); }
+// The kernel's tasks for the program's own functions: once one exists, PROS (serial, devices) is up.
+static bool programStarted() {
+  for (const char *name : {"User Initialization (PROS)", "User Operator Control (PROS)", "User Autonomous (PROS)",
+                           "User Disabled (PROS)", "User Comp. Init. (PROS)"})
+    if (pros::c::task_get_by_name(name))
+      return true;
+  return false;
+}
+
+static void bootTask(void *) {
+  while (!programStarted())
+    pros::delay(10);
+  startTasks();
+}
+
+// Plug and play: no code needed in the program. This runs while the program loads, before PROS has
+// finished starting, so it only leaves a small task behind that starts field control once the
+// program's own initialize() has begun.
+__attribute__((constructor)) static void autoStart() {
+  pros::c::task_create(bootTask, nullptr, TASK_PRIORITY_DEFAULT, TASK_STACK_DEPTH_MIN, "fc boot");
+}
 
 void init(std::function<void()> stop, std::function<void()> autonomous) {
   mtx.take();
   stopAll = std::move(stop);
   autonFn = std::move(autonomous);
   mtx.give();
-  start();
+  startTasks();
 }
 
 } // namespace fieldctl

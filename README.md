@@ -107,6 +107,8 @@ Limits: driving done somewhere other than `opcontrol()` (a task of its own) keep
 **Releasing a new version of the library** (in `robot/`, PROS terminal): change `VERSION` in `robot/Makefile`, run `pros make template`,
 move the new `fieldctl@X.Y.Z.zip` into `robot/templates/`, add an entry for it to `robot/depot.json`, then commit and push.
 `robot/src/main.cpp` is an example program and is not part of the library.
+The library ships as source (`src/fieldctl/fieldctl.cpp` in the team's project), not inside `firmware/fieldctl.a`, so it is built into the
+program's hot package. Put into the cold package next to LemLib and lvgl, it made programs silently not run at all.
 
 ## Local test (no Vercel, no robots)
 
