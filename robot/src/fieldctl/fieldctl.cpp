@@ -26,6 +26,16 @@ static State state;
 static pros::Mutex mtx;
 static std::function<void()> stopAll;  // set by init(); empty = brake every motor
 static std::function<void()> autonFn;  // set by init(); empty = the program's autonomous()
+// On = the robot is held disabled until a match runs it; off = field control does nothing.
+// Set from the terminal with the vexnet command (vexnet.cmd on|off writes include/fieldctl/config.h),
+// or from code with setVexnet(). On unless config.h says otherwise.
+#if __has_include("fieldctl/config.h")
+#include "fieldctl/config.h"
+#endif
+#ifndef FIELDCTL_VEXNET
+#define FIELDCTL_VEXNET 1
+#endif
+static std::atomic<bool> vexnetOn{FIELDCTL_VEXNET != 0};
 
 static State snapshot() {
   mtx.take();
@@ -35,18 +45,23 @@ static State snapshot() {
 }
 static bool signalLost(const State &s) { return pros::millis() - s.lastMsgMs > kHeartbeatTimeoutMs; }
 
-bool engaged() { return snapshot().engaged; }
+void setVexnet(bool on) { vexnetOn = on; }
+bool vexnet() { return vexnetOn; }
+
+bool engaged() { return vexnetOn && snapshot().engaged; }
 
 bool driverAllowed() {
+  if (!vexnetOn)
+    return true;
   State s = snapshot();
   if (!s.engaged)
-    return true;
+    return false; // VEXNET on: no driving until a match starts
   return s.enabled && !s.autoPeriod && !signalLost(s);
 }
 
 // "FC <A|D> <0|1> <secsLeft> <runId>"  or  "FC OFF"
 static void handleLine(const char *line) {
-  if (strncmp(line, "FC ", 3) != 0)
+  if (!vexnetOn || strncmp(line, "FC ", 3) != 0)
     return;
   char period;
   int en, secs, run;
@@ -71,6 +86,10 @@ static void handleLine(const char *line) {
 static void listenerTask(void *) {
   char line[160];
   while (true) {
+    if (!vexnetOn) { // off: leave the terminal input to the program
+      pros::delay(50);
+      continue;
+    }
     if (fgets(line, sizeof(line), stdin))
       handleLine(line);
     else
@@ -99,6 +118,7 @@ static void pauseDriver() {
   if (t && t != pros::c::task_get_current()) {
     pros::c::task_suspend(t);
     pausedDriver = t;
+    stopMotors(); // whatever the driver loop last set
   }
 }
 
@@ -141,9 +161,11 @@ static void killAuton() {
   stopMotors();
 }
 
-static void describe(const State &s, char *out, size_t n) {
-  if (!s.engaged)
-    snprintf(out, n, "PRACTICE          ");
+static void describe(const State &s, bool on, char *out, size_t n) {
+  if (!on)
+    snprintf(out, n, "VEXNET OFF        ");
+  else if (!s.engaged)
+    snprintf(out, n, "WAITING FOR MATCH ");
   else if (signalLost(s))
     snprintf(out, n, "NO FIELD SIGNAL   ");
   else
@@ -158,13 +180,15 @@ static void supervisorTask(void *) {
   pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
   while (true) {
-    State s = snapshot();
+    bool on = vexnetOn;
+    State s = on ? snapshot() : State{}; // off: as if no match ever had the robot
+    bool waiting = on && !s.engaged;     // on, no match running it: held disabled
     bool live = s.engaged && s.enabled && !signalLost(s);
     bool wantAuton = live && s.autoPeriod;
     bool wantDriver = live && !s.autoPeriod;
 
-    // driver control: only in an enabled driver period, or when no match has the robot
-    if (s.engaged && !wantDriver)
+    // driver control: only in an enabled driver period, or always with VEXNET off
+    if (on && !wantDriver)
       pauseDriver();
     else
       resumeDriver();
@@ -180,22 +204,22 @@ static void supervisorTask(void *) {
       if (autonTask)
         killAuton();
       stopMotors();
-      printf("FIELD: %s\n", s.engaged ? "disabled" : "released");
+      printf("FIELD: %s\n", s.engaged ? "disabled" : on ? "match over, waiting for the next" : "released");
     }
     if (s.engaged && !live)
       stopMotors();
     wasLive = live;
     wasEngaged = s.engaged;
 
-    if (s.engaged || shown[0]) {
+    if (s.engaged || waiting || shown[0]) {
       char text[24];
-      describe(s, text, sizeof(text));
+      describe(s, on, text, sizeof(text));
       if (strcmp(text, shown) != 0 && controller.print(0, 0, "%s", text) == 1)
         snprintf(shown, sizeof(shown), "%s", text);
     }
 
     uint32_t now = pros::millis();
-    if (now - lastStatusMs >= kStatusIntervalMs) {
+    if (on && now - lastStatusMs >= kStatusIntervalMs) { // off: no replies, the website shows no robot
       lastStatusMs = now;
       if (s.engaged)
         printf("FCS|%c|%d|%d|%d\n", s.autoPeriod ? 'A' : 'D', live ? 1 : 0, autonRunning ? 1 : 0,

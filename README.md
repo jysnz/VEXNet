@@ -86,16 +86,28 @@ py -3 relay\relay.py --server https://your-project.vercel.app --token <RELAY_TOK
 pros c add-depot VEXNET https://raw.githubusercontent.com/jysnz/VEXNet/master/robot/depot.json
 pros c apply fieldctl
 ```
-Later updates: `pros c upgrade fieldctl` (or `pros c apply fieldctl@<version>`). (The repo has to be public for the depot link to work.)
+Later updates: `pros c upgrade fieldctl` (or `pros c apply fieldctl@<version>`). If PROS says the version doesn't exist or
+"does not support kernel version", refresh its copy of the depot first: `pros c query-templates fieldctl --force-refresh`.
+(The repo has to be public for the depot link to work.)
 
-That's all: **no code to add.** Build and upload as usual (`pros mu`). The library starts with the program, and while a match has the robot:
+That's all: **no code to add.** Build and upload as usual (`pros mu`). The library starts with the program with **VEXNET on**:
 
-| Match says | The robot |
+| | The robot |
 |---|---|
-| disabled (before START, transition, after the match, referee) | pauses the program's `opcontrol()` and brakes every motor |
-| autonomous | runs the program's own `autonomous()`, stopped when the period ends or on disable |
-| driver control | resumes `opcontrol()` where it was paused |
-| no match / released | nothing - practice driving works as before |
+| program started, no match yet (and after a match / when released) | **disabled**: `opcontrol()` paused, every motor braked, controller shows `WAITING FOR MATCH` |
+| match disabled (before START, transition, after the match, referee) | the same |
+| match autonomous | runs the program's own `autonomous()`, stopped when the period ends or on disable |
+| match driver control | resumes `opcontrol()` where it was paused |
+
+**VEXNET on / off from the terminal** (PROS terminal of the robot project, no code change). It saves the setting, then builds and uploads:
+
+```
+.\vexnet off              practice: field control off, the robot drives normally and doesn't answer the website
+.\vexnet on               matches: the robot waits disabled until the gamemaster starts a match
+.\vexnet off --slot 2     anything after on/off is passed to pros mu
+```
+It writes `include/fieldctl/config.h` (keep it in git so teammates build the same way). A program can also switch it with
+`fieldctl::setVexnet(false)` (`#include "fieldctl/fieldctl.hpp"`).
 
 It also shows `AUTO 0:25 ON` on the controller's top line, disables itself if it hears nothing for 2 s, and replies `FCS|...` status
 lines the website reads. It does not use the real competition state, so it works in any program slot.
