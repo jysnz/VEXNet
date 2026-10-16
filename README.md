@@ -16,7 +16,7 @@ runs the whole match: 3-2-1, autonomous, driver control.
 | `public/`, `api/`, `vercel.json` | the website + its API | Vercel |
 | `public/usb-relay.js` | the same job inside Chrome / Edge (Web Serial), no install | every laptop with controllers, in the browser |
 | `relay/relay.py` | forwards the match to the robots, reports the laptop's controllers (optional, needs Python + PROS) | every laptop with controllers plugged in (USB) |
-| `robot/` | `fieldctl` - drop into any PROS robot project | the V5 Brain |
+| `robot/` | `fieldctl` - PROS library template teams install from the terminal (like LemLib) | the V5 Brain |
 | `test/` | match-logic tests (`npm test`) | anywhere |
 | `dev-server.mjs` | run the site locally (`npm run dev`) | your laptop |
 
@@ -78,12 +78,20 @@ py -3 relay\relay.py --server https://your-project.vercel.app --token <RELAY_TOK
 - The window shows which robot slot each controller is in, the clock, and each robot's status.
 - A controller that is no longer in a match is sent `FC OFF` for 3 s, which puts its robot back in normal practice mode.
 
-## 3. Put the robot module in your robot programs
+## 3. Put the field-control library in your robot programs
 
-Copy `robot/fieldctl.hpp` and `robot/fieldctl.cpp` into a PROS project (`include/` and `src/`), then:
+`fieldctl` is a PROS library, installed the same way as LemLib. In the PROS terminal of the robot project (VS Code with the PROS extension), once:
+
+```
+pros c add-depot VEXNET https://raw.githubusercontent.com/jysnz/VEXNet/master/robot/depot.json
+pros c apply fieldctl
+```
+Later updates: `pros c update`. (The repo has to be public for the depot link to work.)
+
+Then in the program:
 
 ```cpp
-#include "fieldctl.hpp"
+#include "fieldctl/fieldctl.hpp"
 
 static void stopEverything() { /* stop every motor / actuator */ }
 static void myAutonomous()   { /* your autonomous routine */ }
@@ -104,6 +112,10 @@ Nothing changes until the first message arrives. After that the robot is DISABLE
 once per autonomous period (killed on disable), allows joystick driving in an enabled driver period, shows `AUTO 0:25 ON` on the
 controller's top line, and disables itself if it hears nothing for 2 s. It replies `FCS|...` lines the relay reads. It does not use the real
 competition state, so it works in any program slot that includes the module.
+
+**Releasing a new version of the library** (in `robot/`, PROS terminal): change `VERSION` in `robot/Makefile`, run `pros make template`,
+move the new `fieldctl@X.Y.Z.zip` into `robot/templates/`, add an entry for it to `robot/depot.json`, then commit and push.
+`robot/src/main.cpp` is an example program and is not part of the library.
 
 ## Local test (no Vercel, no robots)
 

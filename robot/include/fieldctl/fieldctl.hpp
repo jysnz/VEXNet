@@ -1,6 +1,9 @@
 #pragma once
-// Portable scrimmage field control -- drop into any PROS project.
-// Speaks the same protocol as tools/field_relay.py ("FC ..." in, "FCS|..." out).
+// VEXNET field control for PROS -- lets the VEXNET website run matches with this robot.
+// Install: pros c add-depot VEXNET <depot url>  then  pros c apply fieldctl   (see README)
+// Protocol: "FC ..." lines in, "FCS|..." lines out (the website / relay.py speak it).
+//
+//   #include "fieldctl/fieldctl.hpp"
 //
 //   fieldctl::init(stopAll, autonomous);   // first thing in initialize()
 //   ...
