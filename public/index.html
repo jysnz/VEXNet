@@ -63,11 +63,17 @@
   #pin input { width:100%; font-size:28px; text-align:center; letter-spacing:6px; padding:12px; border-radius:10px; border:2px solid var(--dim); background:var(--bg); margin:14px 0; }
   #pin button { width:100%; padding:14px; background:var(--cyan); color:#0b0b0f; font-weight:800; font-size:18px; }
   #pin p { margin:0; color:var(--gray); }
+  #usb { margin-top:18px; }
+  #usb input { padding:9px 10px; border-radius:10px; border:2px solid var(--dim); background:var(--bg); font-size:15px; width:12em; }
+  .ctrl { display:flex; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--bg); border-radius:10px; font-size:14px; }
+  .ctrl b { font-family:ui-monospace,Consolas,monospace; }
+  .usbnote { color:var(--orange); font-size:14px; min-height:1.2em; margin-top:8px; }
 </style>
 </head>
 <body>
 <div class="warn" id="warn">Storage is in memory: set up Upstash Redis (see README) or matches can disappear between requests.</div>
 <div id="app"></div>
+<div class="panel" id="usb"></div>
 <div class="foot"><span class="conn" id="conn"></span><span id="connText">connecting</span></div>
 
 <div id="pin"><form id="pinForm">
@@ -76,6 +82,7 @@
   <button type="submit">Unlock</button><div class="err" id="pinErr"></div>
 </form></div>
 
+<script src="/usb-relay.js"></script>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -178,7 +185,7 @@ function viewHome() {
     try { const { data } = await get("/api/relays"); lastOk = Date.now(); setConn(true, "connected");
       const el = $("relayInfo"); if (el) el.textContent = data.relays.length
         ? "Laptops online: " + data.relays.map((r) => `${r.name} (${r.ports.length} controller${r.ports.length === 1 ? "" : "s"})`).join(", ")
-        : "No laptops online yet. Run relay.py on each laptop that has controllers plugged in.";
+        : "No laptops online yet. On each laptop with controllers, press Connect controller below (Chrome or Edge).";
     } catch (e) { if (Date.now() - lastOk > 3000) setConn(false, "no connection to the server"); }
   };
   refresh(); timer = setInterval(refresh, 2000);
@@ -215,7 +222,8 @@ function viewJoin(prefill) {
     const m = await get("/api/match?code=" + code);
     if (!m.ok) { err.textContent = m.data.error || "no match with that code"; return; }
     const { data } = await get("/api/relays");
-    const free = data.relays.filter((r) => !m.data.joined.includes(r.name));
+    const free = data.relays.filter((r) => !m.data.joined.includes(r.name))
+      .sort((a, b) => (b.name === usb.name) - (a.name === usb.name));   // this browser's own controllers first
     box.replaceChildren(
       h("p", {}, h("b", {}, m.data.typeTitle), " - tap this laptop to join:"),
       h("div", { class: "laptops" }, free.length ? free.map((r) => h("div", { class: "laptop" },
@@ -223,7 +231,7 @@ function viewJoin(prefill) {
         h("button", { class: "small cyan", onclick: async () => {
           const j = await post({ action: "join", code, relay: r.name }, false);
           if (j.ok) { try { localStorage.setItem("vexnetRelay", r.name); } catch (e) {} go("#/m/" + code); } else err.textContent = j.data.error;
-        } }, "This laptop"))) : h("p", { class: "muted" }, "No free laptops online. Start relay.py on this laptop (controllers plugged in), then press Find again.")),
+        } }, "This laptop"))) : h("p", { class: "muted" }, "No free laptops online. Connect this laptop's controllers below (or run relay.py), then press Find again.")),
       h("button", { class: "small", style: "margin-top:10px", onclick: () => go("#/m/" + code) }, "Just watch the match"));
   }
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
@@ -313,7 +321,7 @@ function viewMatch(code) {
       el.laptops.replaceChildren(...(m.relays.length ? m.relays.map((r) => h("div", { class: "laptop" },
         h("span", {}, h("b", {}, r.name), "  ", h("span", { class: "muted" }, r.ports.join(", ") || "no controllers")),
         r.joined ? h("span", { class: "pill ok" }, "joined") : h("button", { class: "small", disabled: m.started, onclick: () => act({ action: "join", relay: r.name }) }, "Join")))
-        : [h("p", { class: "muted" }, "No laptops online. Run relay.py on each laptop with controllers plugged in.")]));
+        : [h("p", { class: "muted" }, "No laptops online. On each laptop with controllers, press Connect controller below (Chrome or Edge).")]));
     }
     $("warn").style.display = m.storage === "memory" ? "block" : "none";
     sounds(m);
@@ -329,6 +337,45 @@ function viewMatch(code) {
   app.replaceChildren(h("p", { class: "muted" }, "Loading match " + code + "..."));
   poll(); timer = setInterval(poll, 300);
 }
+
+// ─── This laptop's controllers (USB, no relay.py needed) ───────────────────────
+const usb = UsbRelay.create({ getPin: () => pin, onChange: () => renderUsb() });
+const usbEl = {};
+function buildUsb() {
+  const box = $("usb");
+  if (!usb.supported) {
+    box.replaceChildren(h("h2", {}, "This laptop's controllers"),
+      h("p", { class: "muted", style: "margin:0" }, "To use controllers plugged into this laptop, open this page in Chrome or Edge on it (or run relay.py)."));
+    return;
+  }
+  usbEl.name = h("input", { value: usb.name, maxlength: 30, title: "How this laptop is shown in matches",
+    onchange: (e) => { usb.setName(e.target.value); e.target.value = usb.name; } });
+  usbEl.list = h("div", { class: "laptops" });
+  usbEl.note = h("div", { class: "usbnote" });
+  usbEl.pin = h("button", { class: "small", style: "display:none", onclick: () => askPin("") }, "Enter PIN");
+  box.replaceChildren(
+    h("div", { class: "row", style: "justify-content:space-between; margin-bottom:8px" },
+      h("h2", { style: "margin:0" }, "This laptop's controllers"),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Laptop name"), usbEl.name,
+        h("button", { class: "small cyan", onclick: () => usb.connect().catch(() => {}) }, "Connect controller"))),
+    usbEl.list, h("div", { class: "row" }, usbEl.note, usbEl.pin));
+}
+function renderUsb() {
+  if (!usb.supported) return;
+  const cs = usb.controllers();
+  const sig = JSON.stringify([cs, usb.note(), usb.online()]);
+  if (sig === usbEl.sig) return;
+  usbEl.sig = sig;
+  usbEl.list.replaceChildren(...(cs.length ? cs.map((c) => h("div", { class: "ctrl" },
+      h("span", {}, h("b", {}, c.name), "  ", h("span", { class: "muted" }, c.slot || "not in a match")),
+      h("span", { style: "color:" + (c.ok ? "var(--green)" : "var(--gray)") }, c.robot)))
+    : [h("p", { class: "muted", style: "margin:0" }, "Plug the controllers in by USB, then press Connect controller once for each (Chrome asks which one).")]));
+  const note = usb.note() || (cs.length && !usb.online() ? "connecting to the website..." : "");
+  usbEl.note.textContent = note ? note : cs.length ? "Keep this tab open while the match runs." : "";
+  usbEl.note.style.color = note ? "" : "var(--gray)";
+  usbEl.pin.style.display = /PIN/.test(note) ? "" : "none";
+}
+buildUsb(); renderUsb();
 
 route();
 </script>

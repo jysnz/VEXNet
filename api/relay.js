@@ -1,14 +1,15 @@
-// The relay laptops (the ones with controllers plugged in by USB) talk to this. x-relay-token header.
+// The relay laptops (the ones with controllers plugged in by USB) talk to this: relay.py with the
+// x-relay-token header, or the website itself (Chrome / Edge over USB, public/usb-relay.js) with x-pin.
 //   GET  /api/relay?relay=NAME  -> {now, ports: {COM3: {line, slot, label, code} ...}, clock}
 //        line = what to send that controller's robot (null: nothing, e.g. before the match starts)
 //   POST /api/relay             <- {relay, robots: [{port, fcs, age, error}]}   this laptop's controllers
 import { derive, fcLineFor, slotLabel, TYPES } from './_engine.js';
 import { loadMatches, saveRelay } from './_data.js';
-import { readBody, relayOk, send } from './_http.js';
+import { pinOk, readBody, relayOk, send } from './_http.js';
 
 export default async function handler(req, res) {
-  if (!process.env.RELAY_TOKEN) return send(res, 500, { error: 'RELAY_TOKEN is not set on the server' });
-  if (!relayOk(req)) return send(res, 401, { error: 'token' });
+  if (!process.env.RELAY_TOKEN && !process.env.CONTROL_PIN) return send(res, 500, { error: 'RELAY_TOKEN / CONTROL_PIN are not set on the server' });
+  if (!relayOk(req) && !pinOk(req)) return send(res, 401, { error: 'token' });
   try {
     const now = Date.now();
     if (req.method === 'GET') {

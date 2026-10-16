@@ -14,14 +14,15 @@ runs the whole match: 3-2-1, autonomous, driver control.
 | Folder | What it is | Runs on |
 |---|---|---|
 | `public/`, `api/`, `vercel.json` | the website + its API | Vercel |
-| `relay/relay.py` | forwards the match to the robots, reports the laptop's controllers | every laptop with controllers plugged in (USB) |
+| `public/usb-relay.js` | the same job inside Chrome / Edge (Web Serial), no install | every laptop with controllers, in the browser |
+| `relay/relay.py` | forwards the match to the robots, reports the laptop's controllers (optional, needs Python + PROS) | every laptop with controllers plugged in (USB) |
 | `robot/` | `fieldctl` - drop into any PROS robot project | the V5 Brain |
 | `test/` | match-logic tests (`npm test`) | anywhere |
 | `dev-server.mjs` | run the site locally (`npm run dev`) | your laptop |
 
 ## How a match goes
 
-1. **Every laptop with controllers** runs the relay (below). It shows up on the website as an online laptop with its controllers.
+1. **Every laptop with controllers** opens the website in Chrome/Edge and presses **Connect controller** (or runs the relay, below). It shows up on the website as an online laptop with its controllers.
 2. **Host** opens the website → **Create match** → picks the type → enters the **PIN** → gets a 6-character **match code**.
 3. **Second laptop** opens the same website → **Join match** → types the code → taps **This laptop** (it is picked from the laptops that are online).
    The lobby shows it as *joined*.
@@ -56,7 +57,15 @@ Who can do what: **anyone with the code** can watch a match and join it with a l
 No build step: Vercel serves `public/` and runs `api/*.js` (Node 20+). Without Redis the API falls back to memory, which only
 works on one local process (the page warns you).
 
-## 2. Run the relay (every laptop with controllers)
+## 2. Connect the controllers (every laptop with controllers)
+
+**Easiest - nothing to install:** open the website in **Chrome or Edge** on the laptop the controllers are plugged into.
+At the bottom, under *This laptop's controllers*, press **Connect controller** and pick a VEX controller; repeat for the second one.
+Enter the PIN when asked. The laptop then shows up as online with its controllers (`CTRL1`, `CTRL2`), and that tab does the relay's job,
+so **keep it open** during the match. Chrome remembers the controllers: next time they reconnect by themselves when the page opens.
+Give each laptop its own name in the *Laptop name* box. Close the PROS terminal and `relay.py` first (only one program can use a controller).
+
+**Or run the relay** (any browser, or no browser open on that laptop):
 
 ```
 pip install pyserial
