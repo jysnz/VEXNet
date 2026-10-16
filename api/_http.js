@@ -7,8 +7,12 @@ function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export const pinOk = (req) => Boolean(process.env.CONTROL_PIN) && safeEqual(req.headers['x-pin'], process.env.CONTROL_PIN);
-export const relayOk = (req) => Boolean(process.env.RELAY_TOKEN) && safeEqual(req.headers['x-relay-token'], process.env.RELAY_TOKEN);
+// Stray spaces / newlines pasted into the Vercel value shouldn't make a correct PIN or token fail.
+const secret = (name) => String(process.env[name] ?? '').trim();
+const given = (req, header) => String(req.headers[header] ?? '').trim();
+
+export const pinOk = (req) => Boolean(secret('CONTROL_PIN')) && safeEqual(given(req, 'x-pin'), secret('CONTROL_PIN'));
+export const relayOk = (req) => Boolean(secret('RELAY_TOKEN')) && safeEqual(given(req, 'x-relay-token'), secret('RELAY_TOKEN'));
 
 export function send(res, code, body) {
   res.setHeader('Cache-Control', 'no-store');

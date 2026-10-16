@@ -325,6 +325,7 @@ class RelayApp:
         self.links = {}
         self.lastScan = 0.0
         self.scanning = False
+        self.scanError = None     # why the last controller scan couldn't link a controller
         self.lock = threading.Lock()
         self.lastLine = {}        # port -> last line the website gave it
         self.releaseUntil = {}    # port -> time until which it hears "FC OFF"
@@ -364,10 +365,18 @@ class RelayApp:
                 new = [p for p in wanted if p not in self.links]
             for l in dead:
                 l.close()
-            for port in new:
-                link = ControllerLink(port, self.vexcom)
+            errors = []
+            for port in new:   # one controller failing must not keep the next one from being linked
+                try:
+                    link = ControllerLink(port, self.vexcom)
+                except Exception as e:
+                    errors.append(f"{port}: couldn't start vexcom ({e})")
+                    continue
                 with self.lock:
                     self.links[port] = link
+            self.scanError = "; ".join(errors) or None
+        except Exception as e:
+            self.scanError = f"controller scan failed: {e}"
         finally:
             self.scanning = False
 
@@ -420,7 +429,7 @@ class RelayApp:
             who = f"{entry['label']} ({entry['code']})" if entry else "not in a match"
             rows.append(f"{s['port']:<6} {who:<22} {describe_robot(s)}")
         self.robotsLabel.configure(text="\n".join(rows) or "no V5 controller plugged in by USB")
-        self.siteLabel.configure(text=self.site.note)
+        self.siteLabel.configure(text=self.site.note + (f"\n{self.scanError}" if self.scanError else ""))
         self.root.after(100, self.tick)
 
     def close(self):
