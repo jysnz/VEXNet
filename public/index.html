@@ -162,13 +162,6 @@
   .err { color:var(--red); min-height:1.3em; margin:8px 0; }
   .warn { background:#3a2a10; color:var(--orange); border-radius:10px; padding:8px 12px; margin-top:10px; font-size:13px; display:none; }
 
-  #pin { position:fixed; inset:0; background:rgba(10,10,15,.96); display:none; align-items:center; justify-content:center; z-index:10; padding:20px; }
-  #pin.show { display:flex; }
-  #pin form { background:var(--card); padding:24px; border-radius:16px; width:100%; max-width:340px; text-align:center; }
-  #pin img { height:64px; }
-  #pin input { width:100%; font-size:28px; text-align:center; letter-spacing:6px; padding:12px; border-radius:10px; border:2px solid var(--dim); background:var(--bg); margin:14px 0; }
-  #pin button { width:100%; padding:14px; background:var(--gold); color:#16120a; font-weight:800; font-size:18px; }
-  #pin p { margin:4px 0 0; color:var(--gray); }
 
   #usb { width:calc(100% - 32px); max-width:968px; margin:28px auto 0; scroll-margin-top:80px; }
   #usb input { padding:9px 10px; border-radius:10px; border:2px solid var(--dim); background:var(--bg2); font-size:15px; width:12em; }
@@ -187,13 +180,6 @@
 <div class="warn" id="warn">Storage is in memory: set up Upstash Redis (see README) or matches can disappear between requests.</div>
 <main id="app"></main>
 <section class="panel" id="usb"></section>
-
-<div id="pin"><form id="pinForm">
-  <img src="/qcu-robotics-logo.png" alt="QCU Robotics">
-  <p><b>VEXNET Field Control</b></p><p>Enter the control PIN</p>
-  <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN">
-  <button type="submit">Unlock</button><div class="err" id="pinErr"></div>
-</form></div>
 
 <script src="/usb-relay.js"></script>
 <script>
@@ -218,35 +204,18 @@ const store = {
 };
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-let pin = store.get("vexnetPin");
-let pinResolve = null;
-function askPin(msg) {
-  $("pin").classList.add("show"); $("pinErr").textContent = msg || ""; $("pinInput").focus();
-  return new Promise((res) => { pinResolve = res; });
-}
-$("pinForm").addEventListener("submit", (e) => {
-  e.preventDefault(); pin = $("pinInput").value.trim();
-  store.set("vexnetPin", pin);
-  $("pinInput").value = ""; $("pin").classList.remove("show"); audioUnlock();
-  if (pinResolve) pinResolve(pin), pinResolve = null;
-});
-
 // This browser, for the match's one game master: the device that claimed it is the only one its controls answer.
 const device = store.get("vexnetDevice") || (() => { const d = "dev-" + Math.random().toString(36).slice(2, 12); store.set("vexnetDevice", d); return d; })();
 
-// POST helper: asks for the PIN when needed (and again if it was wrong).
-async function post(body, needsPin = true) {
-  for (let tries = 0; tries < 3; tries++) {
-    if (needsPin && !pin) await askPin("");
-    const r = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json", "X-Pin": pin }, body: JSON.stringify({ device, ...body }) });
-    const data = await r.json().catch(() => ({}));
-    if (r.status === 401) { pin = ""; store.set("vexnetPin", ""); await askPin("Wrong PIN"); continue; }
-    return { ok: r.ok, data };
-  }
-  return { ok: false, data: { error: "PIN rejected" } };
+// No PIN: the match code is the key, and the game master is the device that claimed the match (this one's id goes
+// with every request; the server only acts on it for the game master).
+async function post(body) {
+  const r = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device, ...body }) });
+  return { ok: r.ok, data: await r.json().catch(() => ({})) };
 }
+// GETs carry the device too: the game master's page asking for its match tells the server it is still there.
 async function get(url) {
-  const r = await fetch(url, { cache: "no-store" });
+  const r = await fetch(url, { cache: "no-store", headers: { "X-Device": device } });
   return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
 }
 
@@ -297,7 +266,7 @@ function backButton() {
 
 function route() {
   pagesSeen++;
-  stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0); gmLaptopInMatch = false;
+  stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0); gmLaptopInMatch = false; gmMatchCode = "";
   document.body.classList.remove("tv", "nousb");
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   if (parts[0] === "create") return viewCreate();
@@ -327,7 +296,7 @@ function viewHome() {
     h("p", { class: "lead" }, "Run a scrimmage: create a match on one device, connect the laptops with the controllers, then start it."),
     back,
     h("div", { class: "actions" },
-      h("button", { class: "big primary", onclick: () => go("#/create") }, "Create match", h("small", {}, "Skills, 1 v 1 or 2 v 2, then pick your role (needs the PIN)")),
+      h("button", { class: "big primary", onclick: () => go("#/create") }, "Create match", h("small", {}, "Skills, 1 v 1 or 2 v 2, then pick your role")),
       h("button", { class: "big", onclick: () => go("#/join") }, "Join match", h("small", {}, "Type the 6-character code, then pick red, blue or game master"))),
     h("div", { class: "panel section" }, h("h2", {}, "Before a match — this laptop"), check, online));
 
@@ -379,7 +348,7 @@ function viewCreate() {
       if (ok) go("#/role/" + data.code); else { err.textContent = data.error || "could not create the match"; btn.disabled = false; }
     } }, h("em", {}, robots), h("b", {}, title), h("span", {}, desc)));
   app.replaceChildren(backButton(), h("h1", {}, "Create match"),
-    h("p", { class: "lead" }, "Pick the match type, then whether you are the red alliance, the blue alliance or the game master. You'll get a code the other laptops use to join. Needs the control PIN."),
+    h("p", { class: "lead" }, "Pick the match type, then whether you are the red alliance, the blue alliance or the game master. You'll get a code the other laptops use to join."),
     h("div", { class: "types" }, cards), err);
   setConn(true, "ready");
 }
@@ -405,7 +374,7 @@ function viewJoin(prefill) {
 }
 
 // ─── Role: red alliance, blue alliance or game master ──────────────────────────
-// Remembered per match on this device. Only the game master (who has the PIN) runs the match; an alliance
+// Remembered per match on this device. Only the game master (the device that claimed the match) runs it; an alliance
 // laptop joins with the code alone and its controllers drive that alliance's robots.
 const roleKey = (code) => "vexnetRole:" + code;
 const getRole = (code) => store.get(roleKey(code));
@@ -424,7 +393,7 @@ function viewRole(code) {
     err.textContent = ""; box.replaceChildren();
     const finish = (relay) => { setRole(code, alliance); store.set("vexnetJoinedMatch", code); store.set("vexnetRelay", relay); go("#/m/" + code); };
     if (usb.supported) {
-      const j = await post({ action: "join", code, relay: usb.name, alliance, robots: usb.reports() }, false);
+      const j = await post({ action: "join", code, relay: usb.name, alliance, robots: usb.reports() });
       return j.ok ? finish(usb.name) : (err.textContent = j.data.error);
     }
     const { data } = await get("/api/relays");
@@ -437,18 +406,18 @@ function viewRole(code) {
       free.length ? h("div", { class: "laptops" }, free.map((r) => h("div", { class: "laptop" },
         h("span", {}, h("b", {}, r.name), h("br"), h("span", { class: "muted" }, `${plural(r.ports.length, "controller")}: ${r.ports.join(", ") || "none"}`)),
         h("button", { class: "small gold", onclick: async () => {
-          const j = await post({ action: "join", code, relay: r.name, alliance }, false);
+          const j = await post({ action: "join", code, relay: r.name, alliance });
           if (j.ok) finish(r.name); else err.textContent = j.data.error;
         } }, "Use this laptop")))) : null));
   }
 
-  // Game master: one device per match. Another one can take over (with the PIN) when the first went away.
+  // Game master: one device per match. Another one can take over once the first has been away 15 s.
   async function gameMaster(m) {
     err.textContent = "";
     const takeover = Boolean(m.gmDevice && m.gmDevice !== device);
-    if (takeover && !confirm("This match already has a game master on another device. Take over? That device loses the controls.")) return;
-    const { ok, data } = await post({ action: "claim", code, takeover, laptop: usb.name });   // asks for the PIN, and again if it's wrong
-    if (!ok) { err.textContent = data.error === "PIN rejected" ? "The game master needs the control PIN." : data.error; return; }
+    if (takeover && !confirm("This match already has a game master on another device. Take over? That works once that device has been away for 15 seconds, and it then loses the controls.")) return;
+    const { ok, data } = await post({ action: "claim", code, takeover, laptop: usb.name });
+    if (!ok) { err.textContent = data.error; return; }
     setRole(code, "gm"); go("#/m/" + code);
   }
 
@@ -482,8 +451,8 @@ function viewRole(code) {
       h("div", { class: "roles" },
         card("red", "Red alliance", sideText("red"), () => joinAlliance("red", m), !has("red") || full("red") || m.started),
         card("blue", "Blue alliance", sideText("blue"), () => joinAlliance("blue", m), !has("blue") || full("blue") || m.started),
-        card("gm", "Game master", gmTaken ? "Taken by another device. Tap to take over (needs the control PIN)."
-          : "Starts, pauses and stops the match and assigns controllers. Needs the control PIN.", () => gameMaster(m), false),
+        card("gm", "Game master", gmTaken ? "Taken by another device. If it has gone away, tap to take over."
+          : "Starts, pauses and stops the match and assigns controllers. One device per match.", () => gameMaster(m), false),
         card("tv", "Broadcast", "Shows the match full screen on a TV: the clock and both alliances, nothing to press. Any number of screens.",
           () => { setRole(code, "tv"); go("#/tv/" + code); }, false)),
       m.started ? h("p", { class: "muted" }, "This match has started: alliances can join the next one after RESET.") : null,
@@ -616,7 +585,7 @@ function viewMatch(code) {
   // Giving up your place: an alliance frees its side, the game master frees the controls for another device.
   // Giving up this device's place: an alliance laptop frees its spot (before START), the game master frees the controls.
   async function giveUpPlace() {
-    if (role === "red" || role === "blue") await post({ action: "leave", code, relay: store.get("vexnetRelay") || usb.name }, false).catch(() => {});
+    if (role === "red" || role === "blue") await post({ action: "leave", code, relay: store.get("vexnetRelay") || usb.name }).catch(() => {});
     if (gm) await post({ action: "unclaim", code }).catch(() => {});
     if (store.get("vexnetJoinedMatch") === code && role !== "gm") store.set("vexnetJoinedMatch", "");
     setRole(code, "");
@@ -658,7 +627,7 @@ function viewMatch(code) {
     if (gm && (!m.gmDevice || (m.gmDevice === device && m.gmLaptop !== usb.name)) && !el.claiming) {
       el.claiming = true; post({ action: "claim", code, laptop: usb.name }).finally(() => { el.claiming = false; });
     }
-    gmLaptopInMatch = gm && m.joined.includes(usb.name);
+    gmLaptopInMatch = gm && m.joined.includes(usb.name); gmMatchCode = gm ? code : "";
     if (!built) build(m);
     store.set("vexnetLastMatch", m.code);
     setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
@@ -826,10 +795,10 @@ function viewTv(code) {
 }
 
 // ─── This laptop's controllers (USB, no relay.py needed) ───────────────────────
-// An alliance laptop reports with the code of the match it joined; the game master's laptop with the PIN.
-// gmLaptopInMatch: the game master's own laptop is one of the match's laptops (set by the match page).
-let gmLaptopInMatch = false;
-const usb = UsbRelay.create({ getPin: () => pin, getCode: () => store.get("vexnetJoinedMatch"),
+// gmLaptopInMatch: the game master's own laptop is one of the match's laptops; gmMatchCode: that match (set by the
+// match page). The relay speaks for this laptop with the code of the match it is in.
+let gmLaptopInMatch = false, gmMatchCode = "";
+const usb = UsbRelay.create({ getPin: () => "", getCode: () => store.get("vexnetJoinedMatch") || gmMatchCode,
   inMatch: () => Boolean(store.get("vexnetJoinedMatch")) || gmLaptopInMatch, onChange: () => renderUsb() });
 const usbEl = {};
 function buildUsb() {
@@ -843,13 +812,12 @@ function buildUsb() {
     onchange: (e) => { usb.setName(e.target.value); e.target.value = usb.name; renderUsb(true); } });
   usbEl.list = h("div", { class: "laptops" });
   usbEl.note = h("div", { class: "usbnote" });
-  usbEl.pin = h("button", { class: "small", style: "display:none", onclick: () => askPin("") }, "Enter PIN");
   box.replaceChildren(
     h("div", { class: "row between", style: "margin-bottom:10px" },
       h("h2", { style: "margin:0" }, "This laptop's controllers"),
       h("div", { class: "row" }, h("span", { class: "muted" }, "Laptop name"), usbEl.name,
         h("button", { class: "small gold", onclick: () => usb.connect().catch(() => {}) }, "Connect controller"))),
-    usbEl.list, h("div", { class: "row" }, usbEl.note, usbEl.pin));
+    usbEl.list, h("div", { class: "row" }, usbEl.note));
 }
 function renderUsb(force) {
   // top-bar chip
@@ -872,7 +840,6 @@ function renderUsb(force) {
   const note = usb.note() || (cs.length && !usb.online() ? "connecting to the website..." : "");
   usbEl.note.textContent = note ? note : cs.length ? "Keep this tab open while the match runs." : "";
   usbEl.note.style.color = note ? "" : "var(--gray)";
-  usbEl.pin.style.display = /PIN/.test(note) ? "" : "none";
 }
 buildUsb(); renderUsb();
 

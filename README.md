@@ -6,7 +6,7 @@ runs the whole match: 3-2-1, autonomous, driver control.
 
 ```
  any browser (phone / tablet / laptop) ──► VEXNET website on Vercel ◄── polls over HTTPS ── relay on laptop A ─┐
-   create / join / lobby / match screen      matches + clock, PIN                          ── relay on laptop B ─┤
+   create / join / lobby / match screen      matches + clock, code                         ── relay on laptop B ─┤
                                              state in Upstash Redis                                              │
                                                        controller USB ► radio ► Brain (robot program) ◄─────────┘
 ```
@@ -23,22 +23,22 @@ runs the whole match: 3-2-1, autonomous, driver control.
 ## How a match goes
 
 Everyone picks a role when they create or join a match: **Red alliance**, **Blue alliance** or **Game master**.
-Each side takes **one laptop per robot** (1 v 1: one red and one blue laptop; 2 v 2: two of each, one robot each), and there is **one game-master device**. **Leave match** (top of the match page) gives up your place and goes home. Only the game master (the PIN, on the
-device that claimed it) runs the match; the alliances' laptops only drive their own robots. A taken role shows who has it.
+Each side takes **one laptop per robot** (1 v 1: one red and one blue laptop; 2 v 2: two of each, one robot each), and there is **one game-master device**. **Leave match** (top of the match page) gives up your place and goes home. **No PIN:** the 6-character match code
+is the only key, and only the game master (the device that picked it first) runs the match; the alliances' laptops only drive their own robots. A taken role shows who has it.
 
 1. **Every laptop with controllers** opens the website in Chrome/Edge and presses **Connect controller** (or runs the relay, below).
-2. **Host** opens the website → **Create match** → picks the type → enters the **PIN** → gets a 6-character **match code** → picks a role.
+2. **Host** opens the website → **Create match** → picks the type → gets a 6-character **match code** → picks a role.
 3. **Each alliance laptop** opens the same website → **Join match** → types the code → **Red alliance** or **Blue alliance**.
    No PIN and no controller to pick: the laptop takes that side at once, and its controllers - connected now or later -
    take that side's slots by themselves (`CTRL1` → `RED 1`, `CTRL2` → `RED 2`).
    (Chrome still shows its own device picker the first time a controller is connected on a laptop; after that it reconnects by itself.)
    **Broadcast** (any number of screens, no PIN): the match full screen on a TV - big clock, status, both alliances' robots, and before
    START the join code. Tap once on the TV to start it (sound + full screen); nothing else to press.
-4. **Game master** (any device: **Join match** → code → **Game master**, PIN) watches the lobby fill in. Another device with the PIN
-   can **take over** (the first one loses the controls), and the game master can **Remove** a laptop that went away, which frees its side. **Auto-assign controllers**
+4. **Game master** (any device: **Join match** → code → **Game master**) watches the lobby fill in. If its device goes away
+   (closed tab, flat battery), another device can **take over** once it has been gone 15 s (the first one loses the controls), and the game master can **Remove** a laptop that went away, which frees its side. **Auto-assign controllers**
    keeps every laptop on its side; any slot can be changed by hand with its dropdown (1 v 1 on one laptop with two controllers: join it as red, then give BLUE 1 its second controller).
 5. START unlocks when every slot has a controller whose robot is **replying**. The lobby says what is missing.
-6. **START MATCH** (game master only, PIN): 3-2-1 → **autonomous** → the robots wait **disabled** → the referee taps **START DRIVER CONTROL** →
+6. **START MATCH** (game master only): 3-2-1 → **autonomous** → the robots wait **disabled** → the referee taps **START DRIVER CONTROL** →
    3-2-1 → **driver control** → ended. Everything is disabled at the end.
    - **SKIP AUTONOMOUS** (next to START MATCH, 1 v 1 and 2 v 2): no autonomous; the robots wait disabled until START DRIVER CONTROL.
    - During driver control, **PAUSE** disables the robots and stops the clock; **RESUME** carries on from the same time.
@@ -56,7 +56,7 @@ During a match the host can **PAUSE / RESUME** driver control, **Disable / Enabl
 The match screen plays countdown beeps, the "Mama!!" sound at GO (`public/sounds/go.mp3`) and a buzzer at the end, on the device that has it open.
 Times live in `api/_engine.js` (`TYPES`, `AUTO`, `DRIVER`).
 
-Who can do what: **anyone with the code** can watch a match and join it as an alliance with a laptop; **only the game master (the PIN)** can create, assign, start, pause, stop, reset or close.
+Who can do what: **anyone with the code** can watch a match and join it as an alliance with a laptop; **only the game master's device** can assign, start, pause, stop, reset, end or close; anyone can create a match.
 A laptop that joined as an alliance talks to the website with the match code, and only for itself in that match.
 
 ## 1. Deploy to Vercel
@@ -65,7 +65,7 @@ A laptop that joined as an alliance talks to the website with the match code, an
 2. In the Vercel project → **Storage** → add **Upstash Redis** (Marketplace). It sets the `UPSTASH_REDIS_REST_*`
    (or `KV_REST_API_*`) variables. Matches and laptops live there.
 3. **Settings → Environment Variables**, add for Production:
-   - `CONTROL_PIN` - the PIN for the host.
+   - `CONTROL_PIN` - optional, nothing asks for it: sent as `x-pin` it acts as the game master and can take over at once.
    - `RELAY_TOKEN` - a long random secret for the relays: `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`
 4. Redeploy. Open the site.
 
@@ -76,7 +76,7 @@ works on one local process (the page warns you).
 
 **Easiest - nothing to install:** open the website in **Chrome or Edge** on the laptop the controllers are plugged into.
 At the bottom, under *This laptop's controllers*, press **Connect controller** and pick a VEX controller; repeat for the second one.
-Then join the match as **Red alliance** or **Blue alliance** (no PIN; the game master's own laptop uses the PIN instead). The laptop then shows up with its controllers (`CTRL1`, `CTRL2`), and that tab does the relay's job,
+Then join the match as **Red alliance** or **Blue alliance** (no PIN). The laptop then shows up with its controllers (`CTRL1`, `CTRL2`), and that tab does the relay's job,
 so **keep it open** during the match. Chrome remembers the controllers: next time they reconnect by themselves when the page opens.
 Give each laptop its own name in the *Laptop name* box. Close the PROS terminal and `relay.py` first (only one program can use a controller).
 
@@ -149,8 +149,8 @@ npm test                            # match-logic tests
 
 ## Safety notes
 
-- Anyone with the PIN can run matches and enable robots, and anyone with the relay token can speak for a relay: use long values, keep the token out of
-  screenshots, and rotate both in Vercel if they leak. Match codes only grant viewing and joining.
+- There is no PIN: **anyone with a match code can join it, and the first device to pick Game master runs it.** Share codes only with the teams
+  in that match. Anyone with the relay token can speak for a relay: use a long value, keep it out of screenshots, and rotate it in Vercel if it leaks.
 - A lost website, internet or relay disables the robots (relay: ~1.5 s, robot: 2 s). The extra hop adds a little delay to a disable compared with a LAN,
   so keep the robots off the floor while testing.
 
@@ -162,7 +162,7 @@ npm test                            # match-logic tests
 | `GET /api/match?code=ABC123` | none | the match (clock, slots, readiness, laptops) |
 | `POST /api/match` `{action:"join",code,relay,alliance?,robots?}` | none | a laptop joins, as `red` or `blue` (its controllers take that side's slots) |
 | `POST /api/match` `{action:"leave",code,relay}` | none | a laptop gives up its side (before START) |
-| `POST /api/match` `{action:"claim",code,device,takeover?}` | `x-pin` | this device becomes the one game master |
-| `POST /api/match` `{action:"create"\|"assign"\|"autoassign"\|"start"\|"next"\|"pause"\|"resume"\|"stop"\|"reset"\|"toggle"\|"end"\|"leave"\|"close",...}` | `x-pin` | host actions |
-| `GET /api/relay?relay=NAME` | `x-relay-token`, `x-pin`, or `x-match-code` of a match it joined | what to send each of that laptop's controllers (a controller in several matches follows the running one, else the newest) |
+| `POST /api/match` `{action:"claim",code,device,takeover?}` | none | this device becomes the one game master (takeover: once the old one has been away 15 s) |
+| `POST /api/match` `{action:"create"\|"assign"\|"autoassign"\|"start"\|"next"\|"pause"\|"resume"\|"stop"\|"reset"\|"toggle"\|"end"\|"close",...}` | the game master's `device` | the game master's controls (`create` needs nothing) |
+| `GET /api/relay?relay=NAME` | `x-relay-token`, or `x-match-code` of a match it joined | what to send each of that laptop's controllers (a controller in several matches follows the running one, else the newest) |
 | `POST /api/relay` | same | the laptop reports its controllers' status |

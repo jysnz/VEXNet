@@ -11,6 +11,7 @@ export const COUNTDOWN_MS = 3000; // "3, 2, 1" before every START (robots stay d
 export const GO_SHOW_MS = 1000; // how long "GO!" stays up
 export const ROBOT_STALE_S = 2; // a robot silent this long counts as "no reply"
 export const RELAY_STALE_MS = 5000; // a relay silent this long is offline
+export const GM_AWAY_MS = 15000; // a game master's page silent this long can be taken over by another device
 
 const AUTO = { key: 'AUTO', title: 'AUTONOMOUS', robot: 'A', secs: 30 };
 const DRIVER = { key: 'DRIVER', title: 'DRIVER CONTROL', robot: 'D', secs: 90 };
@@ -325,7 +326,7 @@ export function applyAction(m, act, relays, now) {
   const editable = !isStarted(next); // slots and laptops are fixed once a match is running
 
   if (next.endedAt) return act.action === 'end' ? { match: next } : { error: 'this match has ended' };
-  if (next.gm && GM_ACTIONS.includes(act.action) && act.device !== next.gm.device) return { error: 'only the game master can do that' };
+  if (next.gm && GM_ACTIONS.includes(act.action) && act.device !== next.gm.device && !act.admin) return { error: 'only the game master can do that' };
   switch (act.action) {
     case 'end': // finish for good: everything stops where it is, the robots are released, nothing can restart it
       if (isStarted(next) && !next.stoppedAt && d.phase !== 'ended') next.stoppedAt = now;
@@ -360,9 +361,16 @@ export function applyAction(m, act, relays, now) {
       return { match: next };
     }
     case 'claim': {
-      // The game master's device. takeover: replace one that left without letting go (closed tab, other device).
-      if (next.gm && next.gm.device !== act.device && !act.takeover) return { error: 'this match already has a game master' };
+      // The game master's device: the first one to ask. takeover: replace one that left without letting go (closed
+      // tab, flat laptop) - only once its page has been silent for GM_AWAY_MS (gmSeenAt: when it last asked for the
+      // match), so nobody else with the code can grab a game master that is still there. admin (the PIN) can always.
       if (!act.device) return { error: 'device required' };
+      if (next.gm && next.gm.device !== act.device) {
+        if (!act.takeover) return { error: 'this match already has a game master' };
+        const away = now - Math.max(act.gmSeenAt ?? 0, next.gm.at ?? 0);
+        if (!act.admin && away < GM_AWAY_MS)
+          return { error: `the game master is still here: another device can take over once it has been away for ${GM_AWAY_MS / 1000} s` };
+      }
       // laptop: the name this browser's laptop goes by in matches, so the laptop list can show which one runs it.
       next.gm = { device: String(act.device).slice(0, 40), laptop: act.laptop ? String(act.laptop).slice(0, 40) : null, at: now };
       return { match: next };

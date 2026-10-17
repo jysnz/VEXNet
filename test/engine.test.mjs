@@ -319,7 +319,10 @@ test('one game master: the first device claims it, others need a takeover; contr
   assert.match(applyAction(m, { action: 'start', device: 'dev-2' }, relays, T0).error, /only the game master/);
   assert.match(applyAction(m, { action: 'start' }, relays, T0).error, /only the game master/);
   assert.equal(applyAction(m, { action: 'start', device: 'dev-1' }, relays, T0).error, undefined);
-  m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays);   // dev-1 went away
+  // dev-1 is still here (its page checked in 5 s ago): no takeover without the PIN
+  assert.match(applyAction(m, { action: 'claim', device: 'dev-2', takeover: true, gmSeenAt: T0 + 10_000 }, relays, T0 + 15_000).error, /still here/);
+  assert.equal(applyAction(m, { action: 'claim', device: 'dev-2', takeover: true, admin: true, gmSeenAt: T0 + 10_000 }, relays, T0 + 15_000).error, undefined);
+  m = act(m, { action: 'claim', device: 'dev-2', takeover: true, gmSeenAt: T0 + 10_000 }, relays, T0 + 26_000);   // dev-1 went away 16 s ago
   assert.equal(matchView(m, relays, T0).gmDevice, 'dev-2');
   assert.match(applyAction(m, { action: 'start', device: 'dev-1' }, relays, T0).error, /only the game master/);
   m = act(m, { action: 'kick', relay: 'A', device: 'dev-2' }, relays);
@@ -378,7 +381,7 @@ test('the game master claim names its laptop, so the laptop list can mark it', (
   m = act(m, { action: 'join', relay: 'A' }, relays);
   m = act(m, { action: 'claim', device: 'dev-1', laptop: 'A' }, relays);
   assert.equal(matchView(m, relays, T0).gmLaptop, 'A');
-  m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays);   // a phone or tablet: no laptop
+  m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays, T0 + 20_000);   // a phone or tablet: no laptop
   assert.equal(matchView(m, relays, T0).gmLaptop, null);
 });
 
