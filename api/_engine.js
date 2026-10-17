@@ -235,6 +235,20 @@ export function sortPorts(ports) {
   });
 }
 
+// A fixed order for a match's laptops, so rows never trade places between refreshes (storage keeps no order, and
+// a laptop that drops out for a moment would otherwise come back at the end): red, then blue, then the other
+// laptops in the match (the game master's), each in join order; then the ones not in it, by name.
+export function laptopOrder(m) {
+  const rank = (name) => {
+    const side = m.roles?.[name], at = m.joined.indexOf(name);
+    return [side === 'red' ? 0 : side === 'blue' ? 1 : at >= 0 ? 2 : 3, at >= 0 ? at : 0];
+  };
+  return (a, b) => {
+    const [ra, ja] = rank(a.name), [rb, jb] = rank(b.name);
+    return ra - rb || ja - jb || a.name.localeCompare(b.name, undefined, { numeric: true });
+  };
+}
+
 // ─── What the pages see ─────────────────────────────────────────────────────
 export function matchView(m, relays, now) {
   const t = TYPES[m.type];
@@ -264,6 +278,15 @@ export function matchView(m, relays, now) {
         : describeRobot(robot),
     };
   });
+
+  // Laptops that are online, with their controllers, for joining and assigning (in a fixed order).
+  const laptopsOnline = Object.entries(online).map(([name, r]) => ({
+    name,
+    joined: m.joined.includes(name),
+    alliance: m.roles?.[name] ?? null,
+    ports: sortPorts((r.robots ?? []).map((x) => x.port)),
+    connected: connectedPorts(r), // the ones that can be assigned
+  })).sort(laptopOrder(m));
 
   const blockers = [];
   const started = isStarted(m);
@@ -314,13 +337,11 @@ export function matchView(m, relays, now) {
     joined: m.joined,
     slots,
     // Laptops that are online, with their controllers, for joining and assigning.
-    relays: Object.entries(online).map(([name, r]) => ({
-      name,
-      joined: m.joined.includes(name),
-      alliance: m.roles?.[name] ?? null,
-      ports: sortPorts((r.robots ?? []).map((x) => x.port)),
-      connected: connectedPorts(r), // the ones that can be assigned
-    })),
+    relays: laptopsOnline,
+    // The Laptops list: the online ones plus any in the match that went away, in laptopOrder.
+    laptops: [...laptopsOnline.map((r) => ({ ...r, online: true })),
+      ...m.joined.filter((name) => !online[name]).map((name) => ({
+        name, joined: true, alliance: m.roles?.[name] ?? null, ports: [], connected: [], online: false }))].sort(laptopOrder(m)),
   };
 }
 

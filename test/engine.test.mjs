@@ -431,3 +431,19 @@ test('a pulled-out controller shows as UNPLUGGED (not waiting); a gone laptop as
   v = matchView(m, relays, T0);
   assert.deepEqual([slot(v, 'red1').problem, slot(v, 'blue1').problem], ['offline', 'error']);
 });
+
+test('the laptop list keeps one order whatever order storage returns: red, blue, others in the match, the rest', () => {
+  const base = { A: rep(['CTRL1']), B: rep(['CTRL1']), GM: rep(['CTRL1']), Z: rep(['CTRL1']), C: rep(['CTRL1']) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, base);   // blue joined first
+  m = act(m, { action: 'join', relay: 'GM' }, base);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, base);
+  const names = (relays) => matchView(m, relays, T0).laptops.map((l) => l.name);
+  const reversed = Object.fromEntries(Object.entries(base).reverse());
+  assert.deepEqual(names(base), ['A', 'B', 'GM', 'C', 'Z']);
+  assert.deepEqual(names(reversed), ['A', 'B', 'GM', 'C', 'Z']);
+  // B drops out for a moment: it keeps its row, marked offline
+  const { B, ...withoutB } = base;
+  const v = matchView(m, withoutB, T0);
+  assert.deepEqual(v.laptops.map((l) => [l.name, l.online]), [['A', true], ['B', false], ['GM', true], ['C', true], ['Z', true]]);
+});

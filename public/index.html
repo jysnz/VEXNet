@@ -686,9 +686,9 @@ function viewMatch(code) {
           h("div", { class: "st" }, s.status), sel);
       }));
     }
-    // Laptops: the online ones, plus any that joined and went away (they keep their side until removed).
-    const gone = m.members.filter((x) => !x.online).map((x) => ({ name: x.name, ports: [], joined: true, alliance: x.alliance, offline: true }));
-    const laptops = [...m.relays, ...gone];
+    // Laptops: the online ones plus any that joined and went away (they keep their side until removed), in the
+    // server's fixed order (red, blue, the rest), so rows don't trade places.
+    const laptops = m.laptops.map((r) => ({ ...r, offline: !r.online }));
     const lsig = JSON.stringify([laptops, m.started, m.gmLaptop]);
     if (lsig !== el.lsig) {
       el.lsig = lsig;

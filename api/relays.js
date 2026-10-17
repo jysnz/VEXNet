@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     const now = Date.now();
     const relays = Object.entries(await loadRelays(now))
       .filter(([, r]) => relayOnline(r, now))
-      .map(([name, r]) => ({ name, ports: sortPorts((r.robots ?? []).map((x) => x.port)) }));
+      .map(([name, r]) => ({ name, ports: sortPorts((r.robots ?? []).map((x) => x.port)) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));   // storage keeps no order
     send(res, 200, { relays });
   } catch (e) {
     send(res, 500, { error: String(e.message ?? e) });
