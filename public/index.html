@@ -70,6 +70,41 @@
   .type em { display:inline-block; font-style:normal; font-size:12px; font-weight:700; padding:2px 8px; border-radius:99px; background:var(--dim); margin-bottom:8px; }
   .type:hover:not(:disabled) { border-color:var(--gold); }
 
+  /* who you are in this match */
+  .roles { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:900px) { .roles { grid-template-columns:1fr 1fr; } }
+  @media (max-width:640px) { .roles { grid-template-columns:1fr; } }
+  .role.tv { border-color:var(--white); }
+  .role { text-align:left; padding:22px 18px; background:var(--card); border:3px solid var(--dim); }
+  .role b { display:block; font-size:22px; margin-bottom:6px; } .role span { color:var(--gray); font-size:14px; }
+  .role.red { border-color:var(--red); } .role.red b { color:var(--red); }
+  .role.blue { border-color:var(--blue); } .role.blue b { color:var(--blue); }
+  .role.gm { border-color:var(--gold); } .role.gm b { color:var(--gold); }
+  .role:hover:not(:disabled) { background:var(--bg2); }
+  .youare { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:12px;
+            border-radius:12px; border:2px solid var(--dim); background:var(--card); font-weight:700; }
+  .youare.red { border-color:var(--red); } .youare.blue { border-color:var(--blue); } .youare.gm { border-color:var(--gold); }
+
+  /* broadcast: the match full screen on a TV, nothing to press */
+  body.tv { padding:0; } body.tv .bar, body.tv #usb, body.tv #warn { display:none !important; } body.tv main { max-width:none; padding:0; }
+  .tvwrap { min-height:100vh; display:flex; flex-direction:column; padding:2.5vh 3vw; gap:1.5vh; }
+  .tvtop { display:flex; justify-content:space-between; align-items:center; gap:2vw; }
+  .tvtop img { height:8vh; } .tvtop .title { font-size:4.2vh; font-weight:800; letter-spacing:.1vh; }
+  .tvtop .tvcode { font-family:ui-monospace,Consolas,monospace; font-size:4.2vh; font-weight:800; color:var(--gold); letter-spacing:.6vh; }
+  .tvstatus { text-align:center; font-size:5.5vh; font-weight:800; color:var(--gray); letter-spacing:.2vh; }
+  .tvclock { text-align:center; font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:min(30vw,36vh); line-height:1; }
+  .tvsides { display:grid; grid-template-columns:1fr 1fr; gap:2vw; flex:1; align-items:start; }
+  .tvsides.one { grid-template-columns:1fr; max-width:60vw; margin:0 auto; width:100%; }
+  .tvside { border-radius:2vh; padding:2vh 2vw; border:.6vh solid; background:var(--card); }
+  .tvside.red { border-color:var(--red); } .tvside.blue { border-color:var(--blue); }
+  .tvside h3 { margin:0 0 1.2vh; font-size:4.5vh; letter-spacing:.3vh; } .tvside.red h3 { color:var(--red); } .tvside.blue h3 { color:var(--blue); }
+  .tvrobot { display:flex; justify-content:space-between; align-items:center; font-size:3.4vh; font-weight:700; padding:.8vh 0; }
+  .tvrobot .pill { font-size:2.4vh; padding:.5vh 1.4vh; }
+  .tvjoin { text-align:center; font-size:3vh; color:var(--gray); } .tvjoin b { color:var(--gold); font-family:ui-monospace,Consolas,monospace; letter-spacing:.4vh; }
+  .tvtap { position:fixed; inset:0; background:rgba(10,10,15,.85); display:flex; align-items:center; justify-content:center; z-index:20; border-radius:0; }
+  .tvtap span { font-size:4vh; font-weight:800; padding:3vh 5vw; border:.4vh solid var(--gold); border-radius:2vh; color:var(--gold); }
+  .tvexit { position:fixed; right:1vw; bottom:1vh; opacity:.25; } .tvexit:hover { opacity:1; }
+
   .code { font-family:ui-monospace,Consolas,monospace; font-size:clamp(28px,8vw,42px); font-weight:800; letter-spacing:6px; color:var(--gold); }
   .small { padding:9px 13px; background:var(--dim); font-weight:700; font-size:14px; }
   .small.gold { background:var(--gold); color:#16120a; } .small.red { background:var(--red); color:#0b0b0f; }
@@ -91,12 +126,21 @@
 
   .status { text-align:center; color:var(--gray); font-weight:700; font-size:clamp(15px,3.6vw,22px); margin:14px 0 0; min-height:1.4em; }
   .clock { text-align:center; font-family:ui-monospace,Consolas,monospace; font-weight:800; font-size:clamp(84px,24vw,180px); line-height:1.05; margin:0; }
-  .ctl { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; margin:8px 0 6px; }
-  .ctl button { padding:18px 8px; font-weight:800; font-size:clamp(16px,4.2vw,22px); }
+  .ctl { display:flex; flex-wrap:wrap; gap:10px; margin:8px 0 6px; }
+  .ctl button { flex:1 1 7em; padding:18px 8px; font-weight:800; font-size:clamp(16px,4.2vw,22px); }
+  .ctl .start { flex:2 1 14em; }
   .start { background:var(--green); color:#0b0b0f; } .stop { background:var(--red); color:#0b0b0f; } .reset { background:var(--dim); }
+  .start.pause { background:var(--orange); color:#2b1a00; }
+  .skip { background:var(--card); border:2px solid var(--orange) !important; color:var(--orange); }
+  .end { background:var(--card); border:2px solid var(--red) !important; color:var(--red); }
+  .final { text-align:center; } .final .clock { color:var(--gray); }
   .referee { margin:4px 0 10px; }
 
-  .slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  /* robots: one column per alliance (red left, blue right), stacked on a phone */
+  .slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; align-items:start; }
+  .alliance { display:grid; gap:12px; }
+  .alliance h4 { margin:0; font-size:13px; letter-spacing:1.2px; text-transform:uppercase; }
+  .alliance.red h4 { color:var(--red); } .alliance.blue h4 { color:var(--blue); }
   .slot { background:var(--card); border:3px solid; border-radius:14px; padding:12px; }
   .slot.red { border-color:var(--red); } .slot.blue { border-color:var(--blue); }
   .slot h3 { margin:0 0 6px; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
@@ -185,11 +229,14 @@ $("pinForm").addEventListener("submit", (e) => {
   if (pinResolve) pinResolve(pin), pinResolve = null;
 });
 
+// This browser, for the match's one game master: the device that claimed it is the only one its controls answer.
+const device = store.get("vexnetDevice") || (() => { const d = "dev-" + Math.random().toString(36).slice(2, 12); store.set("vexnetDevice", d); return d; })();
+
 // POST helper: asks for the PIN when needed (and again if it was wrong).
 async function post(body, needsPin = true) {
   for (let tries = 0; tries < 3; tries++) {
     if (needsPin && !pin) await askPin("");
-    const r = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json", "X-Pin": pin }, body: JSON.stringify(body) });
+    const r = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json", "X-Pin": pin }, body: JSON.stringify({ device, ...body }) });
     const data = await r.json().catch(() => ({}));
     if (r.status === 401) { pin = ""; store.set("vexnetPin", ""); await askPin("Wrong PIN"); continue; }
     return { ok: r.ok, data };
@@ -218,8 +265,8 @@ function sounds(m) {
   if (prev && prev.code === m.code) {
     if (m.countdown && m.countdown !== prev.countdown) tone(880, 150);
     if (m.go && !prev.go) { goSound.currentTime = 0; goSound.play().catch(() => tone(1320, 600)); }
-    if (prev.phase === "running" && m.phase === "ended") tone(440, 900);
-    if (prev.segment !== m.segment && m.segment === "DRIVER CONTROL" && prev.phase === "running") tone(1320, 400);
+    if (prev.phase === "running" && (m.phase === "ended" || m.phase === "waiting")) tone(440, 900);
+    if (prev.phase !== m.phase && (m.phase === "paused" || (prev.phase === "paused" && m.phase === "running"))) tone(660, 250);
   }
   prev = m;
 }
@@ -249,10 +296,13 @@ function backButton() {
 function route() {
   pagesSeen++;
   stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0);
+  document.body.classList.remove("tv");
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   if (parts[0] === "create") return viewCreate();
   if (parts[0] === "join") return viewJoin(parts[1] || "");
+  if (parts[0] === "role" && parts[1]) return viewRole(parts[1].toUpperCase());
   if (parts[0] === "m" && parts[1]) return viewMatch(parts[1].toUpperCase());
+  if (parts[0] === "tv" && parts[1]) return viewTv(parts[1].toUpperCase());
   viewHome();
 }
 
@@ -275,8 +325,8 @@ function viewHome() {
     h("p", { class: "lead" }, "Run a scrimmage: create a match on one device, connect the laptops with the controllers, then start it."),
     back,
     h("div", { class: "actions" },
-      h("button", { class: "big primary", onclick: () => go("#/create") }, "Create match", h("small", {}, "You're the host: Skills, 1 v 1 or 2 v 2")),
-      h("button", { class: "big", onclick: () => go("#/join") }, "Join match", h("small", {}, "Type the 6-character code from the host's screen"))),
+      h("button", { class: "big primary", onclick: () => go("#/create") }, "Create match", h("small", {}, "Skills, 1 v 1 or 2 v 2, then pick your role (needs the PIN)")),
+      h("button", { class: "big", onclick: () => go("#/join") }, "Join match", h("small", {}, "Type the 6-character code, then pick red, blue or game master"))),
     h("div", { class: "panel section" }, h("h2", {}, "Before a match — this laptop"), check, online));
 
   let laptops = [];
@@ -324,10 +374,10 @@ function viewCreate() {
     h("button", { class: "type", onclick: async (e) => {
       const btn = e.currentTarget; btn.disabled = true; err.textContent = "";
       const { ok, data } = await post({ action: "create", type });
-      if (ok) go("#/m/" + data.code); else { err.textContent = data.error || "could not create the match"; btn.disabled = false; }
+      if (ok) go("#/role/" + data.code); else { err.textContent = data.error || "could not create the match"; btn.disabled = false; }
     } }, h("em", {}, robots), h("b", {}, title), h("span", {}, desc)));
   app.replaceChildren(backButton(), h("h1", {}, "Create match"),
-    h("p", { class: "lead" }, "Pick the match type. You'll get a code that the laptops with controllers use to join. Needs the control PIN."),
+    h("p", { class: "lead" }, "Pick the match type, then whether you are the red alliance, the blue alliance or the game master. You'll get a code the other laptops use to join. Needs the control PIN."),
     h("div", { class: "types" }, cards), err);
   setConn(true, "ready");
 }
@@ -344,25 +394,95 @@ function viewJoin(prefill) {
     if (code.length < 6) { err.textContent = "The code has 6 characters."; return; }
     const m = await get("/api/match?code=" + code);
     if (!m.ok) { err.textContent = m.data.error || "No match with that code."; return; }
-    const { data } = await get("/api/relays");
-    const free = data.relays.filter((r) => !m.data.joined.includes(r.name))
-      .sort((a, b) => (b.name === usb.name) - (a.name === usb.name));   // this browser's own controllers first
-    box.replaceChildren(h("div", { class: "panel" },
-      h("h2", {}, `Found: ${m.data.typeTitle}`),
-      h("p", { style: "margin:0 0 10px" }, "Which laptop has the controllers for this match?"),
-      h("div", { class: "laptops" }, free.length ? free.map((r) => h("div", { class: "laptop" },
-        h("span", {}, h("b", {}, r.name), r.name === usb.name ? h("span", { class: "muted" }, " (this laptop)") : null,
-          h("br"), h("span", { class: "muted" }, `${plural(r.ports.length, "controller")}: ${r.ports.join(", ") || "none"}`)),
-        h("button", { class: "small gold", onclick: async () => {
-          const j = await post({ action: "join", code, relay: r.name }, false);
-          if (j.ok) { store.set("vexnetRelay", r.name); go("#/m/" + code); } else err.textContent = j.data.error;
-        } }, "Join with this laptop"))) : h("p", { class: "muted" }, "No free laptop is online. Connect this laptop's controllers (bottom of the page), then press Find match again.")),
-      h("button", { class: "small ghost", style: "margin-top:12px", onclick: () => go("#/m/" + code) }, "Just watch the match")));
+    go("#/role/" + code);
   }
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
   app.replaceChildren(backButton(), h("h1", {}, "Join match"), h("p", { class: "lead" }, "Type the code shown on the host's screen."),
     h("div", { class: "stack" }, input, h("button", { class: "big primary", style: "text-align:center", onclick: find }, "Find match"), err, box));
   setConn(true, "ready"); input.focus(); if (prefill) find();
+}
+
+// ─── Role: red alliance, blue alliance or game master ──────────────────────────
+// Remembered per match on this device. Only the game master (who has the PIN) runs the match; an alliance
+// laptop joins with the code alone and its controllers drive that alliance's robots.
+const roleKey = (code) => "vexnetRole:" + code;
+const getRole = (code) => store.get(roleKey(code));
+function setRole(code, role) { store.set(roleKey(code), role); }
+const ROLE_NAME = { red: "RED alliance", blue: "BLUE alliance", gm: "Game master", watch: "Watching", tv: "Broadcast" };
+
+function viewRole(code) {
+  setCrumb(["Home", "#/"], [`Match ${code}`, "#/m/" + code], ["Your role"]);
+  const err = h("div", { class: "err" });
+  const box = h("div", {});
+  app.replaceChildren(h("p", { class: "muted" }, "Loading match " + code + "..."));
+
+  // Red / blue: this laptop takes that side at once. No controller to pick: whatever it has connected now or
+  // connects later fills its side's slots by itself. (A browser without USB can hand the side to a relay.py laptop.)
+  async function joinAlliance(alliance, m) {
+    err.textContent = ""; box.replaceChildren();
+    const finish = (relay) => { setRole(code, alliance); store.set("vexnetJoinedMatch", code); store.set("vexnetRelay", relay); go("#/m/" + code); };
+    if (usb.supported) {
+      const j = await post({ action: "join", code, relay: usb.name, alliance, robots: usb.reports() }, false);
+      return j.ok ? finish(usb.name) : (err.textContent = j.data.error);
+    }
+    const { data } = await get("/api/relays");
+    const free = data.relays.filter((r) => !m.joined.includes(r.name));
+    box.replaceChildren(h("div", { class: "panel section" },
+      h("h2", {}, `The ${alliance} alliance's laptop`),
+      h("p", { class: "muted", style: "margin:0 0 10px" }, free.length
+        ? "This browser can't use USB controllers. Pick the laptop running relay.py, or open this site in Chrome or Edge on the laptop the controllers are plugged into."
+        : "This browser can't use USB controllers. Open this site in Chrome or Edge on the laptop they are plugged into."),
+      free.length ? h("div", { class: "laptops" }, free.map((r) => h("div", { class: "laptop" },
+        h("span", {}, h("b", {}, r.name), h("br"), h("span", { class: "muted" }, `${plural(r.ports.length, "controller")}: ${r.ports.join(", ") || "none"}`)),
+        h("button", { class: "small gold", onclick: async () => {
+          const j = await post({ action: "join", code, relay: r.name, alliance }, false);
+          if (j.ok) finish(r.name); else err.textContent = j.data.error;
+        } }, "Use this laptop")))) : null));
+  }
+
+  // Game master: one device per match. Another one can take over (with the PIN) when the first went away.
+  async function gameMaster(m) {
+    err.textContent = "";
+    const takeover = Boolean(m.gmDevice && m.gmDevice !== device);
+    if (takeover && !confirm("This match already has a game master on another device. Take over? That device loses the controls.")) return;
+    const { ok, data } = await post({ action: "claim", code, takeover });   // asks for the PIN, and again if it's wrong
+    if (!ok) { err.textContent = data.error === "PIN rejected" ? "The game master needs the control PIN." : data.error; return; }
+    setRole(code, "gm"); go("#/m/" + code);
+  }
+
+  get("/api/match?code=" + code).then(({ ok, data: m }) => {
+    if (!ok) {
+      app.replaceChildren(backButton(), h("h1", {}, "Match not found"), h("p", { class: "lead" }, "That match was closed or the code is wrong."));
+      return;
+    }
+    const has = (a) => m.slots.some((s) => s.alliance === a);
+    // One laptop per side: taken by another laptop = not for this one. Its own side stays open (to re-join).
+    const holder = (a) => m.alliances[a] && m.alliances[a] !== usb.name ? m.alliances[a] : null;
+    const sideText = (a) => !has(a) ? "Not in this match type."
+      : holder(a) ? `Taken by ${holder(a)}.`
+      : `Your controllers drive the ${a} robots. The game master runs the match.`;
+    const gmTaken = Boolean(m.gmDevice && m.gmDevice !== device);
+    const card = (cls, title, text, onclick, disabled) =>
+      h("button", { class: "role " + cls, disabled, onclick: (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        Promise.resolve(onclick()).finally(() => { btn.disabled = false; });
+      } },
+        h("b", {}, title), h("span", {}, text));
+    app.replaceChildren(...[backButton(),
+      h("div", { class: "row between", style: "margin-bottom:12px" },
+        h("div", {}, h("h1", {}, m.typeTitle), h("div", { class: "muted" }, "Who are you in this match?")),
+        h("div", { class: "code" }, m.code)),
+      h("div", { class: "roles" },
+        card("red", "Red alliance", sideText("red"), () => joinAlliance("red", m), !has("red") || Boolean(holder("red")) || m.started),
+        card("blue", "Blue alliance", sideText("blue"), () => joinAlliance("blue", m), !has("blue") || Boolean(holder("blue")) || m.started),
+        card("gm", "Game master", gmTaken ? "Taken by another device. Tap to take over (needs the control PIN)."
+          : "Starts, pauses and stops the match and assigns controllers. Needs the control PIN.", () => gameMaster(m), false),
+        card("tv", "Broadcast", "Shows the match full screen on a TV: the clock and both alliances, nothing to press. Any number of screens.",
+          () => { setRole(code, "tv"); go("#/tv/" + code); }, false)),
+      m.started ? h("p", { class: "muted" }, "This match has started: alliances can join the next one after RESET.") : null,
+      err, box,
+      h("button", { class: "small ghost", style: "margin-top:12px", onclick: () => { setRole(code, "watch"); go("#/m/" + code); } }, "Just watch the match")].filter(Boolean));
+  }).catch(() => app.replaceChildren(backButton(), h("p", { class: "err" }, "Can't reach the website.")));
 }
 
 // ─── Match (lobby + live) ───────────────────────────────────────────────────
@@ -375,8 +495,19 @@ function guide(m) {
   let now = !joined ? 0 : !assigned ? 1 : !ready ? 2 : 3;
   let text, sub = "", target;
   if (m.phase === "countdown" || m.phase === "running") {
-    now = 4; text = m.phase === "countdown" ? "Get ready - the match is about to start." : `Match running: ${m.status.toLowerCase()}.`;
-    sub = "STOP ends it early. The referee buttons disable one alliance."; target = null;
+    now = 4; target = null;
+    text = m.phase === "countdown" ? `Get ready - ${m.periodTitle.toLowerCase()} is about to start.` : `Match running: ${m.status.toLowerCase()}.`;
+    sub = m.periodTitle === "AUTONOMOUS" && m.program.length > 1
+      ? "When autonomous ends the robots wait disabled: driver control starts when you press START DRIVER CONTROL."
+      : m.canPause ? "PAUSE disables the robots and stops the clock. STOP ends the match." : "STOP ends it early. The referee buttons disable one alliance.";
+  } else if (m.phase === "waiting") {
+    now = 4; target = "start";
+    text = `${m.skippedAuto ? "Autonomous skipped" : "Autonomous over"} - robots disabled.`;
+    sub = `When the drivers are ready, press START ${m.periodTitle}: 3-2-1, then ${m.periodTitle.toLowerCase()}.`;
+  } else if (m.phase === "paused") {
+    now = 4; target = "start";
+    text = `${m.periodTitle[0] + m.periodTitle.slice(1).toLowerCase()} paused at ${m.clockText} - robots disabled.`;
+    sub = "Press RESUME to carry on from here.";
   } else if (m.phase === "ended" || m.phase === "stopped") {
     now = 4; text = "Match over."; sub = "Press RESET to set up the next one (same robots, same code)."; target = "reset";
   } else if (now === 0) {
@@ -390,12 +521,37 @@ function guide(m) {
     target = "slots"; text = `${s.label} isn't ready: ${s.status}.`;
     sub = "Turn the robot on and run its program (VEXNET on). Its controller must be paired to it.";
   } else {
-    target = "start"; text = "Everything is ready."; sub = "Press START MATCH.";
+    target = "start"; text = "Everything is ready.";
+    sub = m.hasAuto ? "Press START MATCH, or SKIP AUTONOMOUS to go straight to driver control." : "Press START MATCH.";
   }
   return { steps, now, text, sub, target };
 }
 
+// The alliances' version of the guide: where their own robots stand; the game master does everything else.
+function allianceGuide(m, role) {
+  const g = guide(m);
+  g.target = null;
+  const mine = m.slots.filter((s) => s.alliance === role);
+  if (role === "watch" || !mine.length) { g.sub = "The game master runs the match."; return g; }
+  if (m.started) { g.sub = "The game master runs the match: start, pause, stop and the referee buttons are on their screen."; return g; }
+  const missing = mine.find((s) => !s.relay), notReady = mine.find((s) => s.relay && !s.ready);
+  if (missing) { g.text = `${missing.label} has no controller yet.`; g.sub = "Connect this laptop's controllers (bottom of the page): they take your alliance's robots by themselves."; }
+  else if (notReady) { g.text = `${notReady.label} isn't ready: ${notReady.status}.`; g.sub = "Turn the robot on and run its program (VEXNET on). Its controller must be paired to it."; }
+  else { g.text = `Your ${plural(mine.length, "robot")} ${mine.length === 1 ? "is" : "are"} ready.`; g.sub = "Keep this tab open. The game master starts the match."; }
+  return g;
+}
+
+// The robot cards as one column per alliance, red first: RED 1 above RED 2, beside BLUE 1 above BLUE 2.
+function allianceColumns(slots, card) {
+  return ["red", "blue"].filter((a) => slots.some((s) => s.alliance === a)).map((a) =>
+    h("div", { class: "alliance " + a }, h("h4", {}, a + " alliance"), slots.filter((s) => s.alliance === a).map(card)));
+}
+
 function viewMatch(code) {
+  const role = getRole(code);
+  if (!role) return go("#/role/" + code);   // a join link or a new device: say who you are first
+  if (role === "tv") return go("#/tv/" + code);
+  const gm = role === "gm";
   setCrumb(["Home", "#/"], ["Match " + code]);
   let built = false;
   const el = {};
@@ -412,7 +568,9 @@ function viewMatch(code) {
     el.share = h("button", { class: "small", onclick: () => { navigator.clipboard?.writeText(location.origin + "/#/join/" + code); el.share.textContent = "Link copied"; setTimeout(() => el.share.textContent = "Copy join link", 1500); } }, "Copy join link");
     el.steps = h("div", { class: "steps" }); el.next = h("div", { class: "next" });
     el.status = h("p", { class: "status" }); el.clock = h("p", { class: "clock" });
-    el.start = h("button", { class: "start", onclick: () => act({ action: "start" }) }, "START MATCH");
+    // The big button does what comes next: START MATCH, START DRIVER CONTROL, PAUSE, RESUME.
+    el.start = h("button", { class: "start", onclick: () => el.startAction && act({ action: el.startAction }) }, "START MATCH");
+    el.skip = h("button", { class: "skip", onclick: () => act({ action: "start", skipAuto: true }) }, "SKIP AUTONOMOUS");
     el.stop = h("button", { class: "stop", onclick: () => act({ action: "stop" }) }, "STOP");
     el.reset = h("button", { class: "reset", onclick: () => act({ action: "reset" }) }, "RESET");
     el.err = h("div", { class: "err" });
@@ -422,29 +580,61 @@ function viewMatch(code) {
     el.slots = h("div", { class: "slots" });
     el.laptops = h("div", { class: "laptops" });
     el.auto = h("button", { class: "small gold", onclick: () => act({ action: "autoassign" }) }, "Auto-assign controllers");
-    el.close = h("button", { class: "small ghost", onclick: () => { if (confirm("Close this match? Its code stops working.")) act({ action: "close" }); } }, "Close match");
+    el.end = h("button", { class: "end", onclick: () => {
+      if (confirm("End this match? Every robot is disabled and released, and the match can't be restarted.")) act({ action: "end" });
+    } }, "END MATCH");
     el.robotsSec = h("div", { class: "section block" }, h("div", { class: "row between", style: "margin-bottom:10px" }, h("h2", { style: "margin:0" }, "Robots"), el.auto), el.slots);
     el.laptopsSec = h("div", { class: "section block" }, h("h2", {}, "Laptops"), el.laptops);
-    app.replaceChildren(backButton(),
+    el.ctl = h("div", { class: "ctl" }, el.start, el.skip, el.stop, el.reset, el.end);
+    el.youare = h("div", { class: "youare " + role },
+      h("span", {}, "You are: ", ROLE_NAME[role], h("span", { class: "muted", style: "font-weight:400" },
+        gm ? " - you run the match." : role === "watch" ? "" : " - the game master runs the match.")),
+      h("button", { class: "small ghost", onclick: changeRole }, "Change role"));
+    app.replaceChildren(...[backButton(), el.youare,
       h("div", { class: "row between", style: "margin-bottom:12px" },
         h("div", {}, el.title, h("div", { class: "muted" }, "Other laptops join with this code")),
         h("div", { class: "row" }, el.code, el.share)),
       h("div", { class: "panel" }, el.steps, el.next),
       el.status, el.clock,
-      h("div", { class: "ctl" }, el.start, el.stop, el.reset),
-      el.referee, el.err,
-      el.robotsSec, el.laptopsSec,
-      h("div", { class: "section" }, el.close));
+      gm ? el.ctl : null,
+      gm ? el.referee : null, el.err,
+      el.robotsSec, el.laptopsSec].filter(Boolean));   // parts only the game master gets
+    if (!gm) el.auto.remove();
     built = true;
   }
 
+  // Giving up your place: an alliance frees its side, the game master frees the controls for another device.
+  async function changeRole() {
+    if (role === "red" || role === "blue") await post({ action: "leave", code, relay: store.get("vexnetRelay") || usb.name }, false);
+    if (gm) await post({ action: "unclaim", code }).catch(() => {});
+    if (store.get("vexnetJoinedMatch") === code && role !== "gm") store.set("vexnetJoinedMatch", "");
+    setRole(code, ""); go("#/role/" + code);
+  }
+
+  // Someone else has this seat now (a takeover, or the game master removed this laptop): back to choosing.
+  function lostSeat(m) {
+    if (gm && m.gmDevice && m.gmDevice !== device) return "Another device took over as game master.";
+    if ((role === "red" || role === "blue") && !m.started && m.alliances[role] !== (store.get("vexnetRelay") || usb.name))
+      return `This laptop is no longer the ${role} alliance.`;
+    return null;
+  }
+
   function render(m) {
+    if (m.ended) return showEnded(m);
+    const lost = lostSeat(m);
+    if (lost) {
+      setRole(code, ""); stopPolling();
+      if (!gm && store.get("vexnetJoinedMatch") === code) store.set("vexnetJoinedMatch", "");
+      alert(lost); return go("#/role/" + code);
+    }
+    // A game master from before claims existed (or one that let go): this device takes the empty seat.
+    if (gm && !m.gmDevice && !el.claiming) { el.claiming = true; post({ action: "claim", code }).finally(() => { el.claiming = false; }); }
     if (!built) build(m);
     store.set("vexnetLastMatch", m.code);
     setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
 
     // guide
-    const g = guide(m);
+    const g = gm ? guide(m) : allianceGuide(m, role);
     el.steps.replaceChildren(...g.steps.map((label, i) =>
       h("div", { class: "step " + (i < g.now ? "done" : i === g.now ? "now" : "") }, h("i", {}, i < g.now ? "✓" : String(i + 1)), label)));
     el.next.replaceChildren(h("span", { class: "tag" }, g.now >= 4 ? "NOW" : "NEXT"), h("div", {}, g.text, g.sub ? h("small", {}, g.sub) : null));
@@ -453,45 +643,88 @@ function viewMatch(code) {
 
     el.status.textContent = m.status;
     el.clock.textContent = m.clockText; el.clock.style.color = m.clockColor;
-    const live = m.phase === "countdown" || m.phase === "running";
-    el.start.disabled = !m.canStart; el.stop.disabled = !live; el.reset.disabled = !m.canReset;
-    el.start.textContent = m.phase === "ended" || m.phase === "stopped" ? "RESET FIRST" : "START MATCH";
+    const live = ["countdown", "running", "paused", "waiting"].includes(m.phase);
+    const [label, action, can] =
+      m.canNext ? [`START ${m.periodTitle}`, "next", true]
+      : m.canPause ? ["PAUSE", "pause", true]
+      : m.canResume ? ["RESUME", "resume", true]
+      : m.phase === "countdown" ? ["STARTING...", null, false]
+      : m.phase === "running" ? [m.periodTitle, null, false]
+      : m.phase === "ended" || m.phase === "stopped" ? ["RESET FIRST", null, false]
+      : ["START MATCH", "start", m.canStart];
+    el.startAction = action; el.start.textContent = label; el.start.disabled = !can;
+    el.start.classList.toggle("pause", action === "pause");
+    el.skip.style.display = m.hasAuto && !m.started ? "" : "none"; el.skip.disabled = !m.canSkipAuto;
+    el.stop.disabled = !live; el.reset.disabled = !m.canReset;
     el.auto.style.display = m.started ? "none" : "";
-    el.referee.style.display = m.phase === "running" ? "" : "none";
+    el.referee.style.display = ["running", "paused", "waiting"].includes(m.phase) ? "" : "none";
     for (const [a, btn] of [["red", el.refereeRed], ["blue", el.refereeBlue]]) {
       btn.style.display = m.slots.some((s) => s.alliance === a) ? "" : "none";
       btn.textContent = m.overrides[a] ? `Enable ${a.toUpperCase()}` : `Disable ${a.toUpperCase()}`;
     }
     // Robots: rebuilt only when something changed, so a dropdown being used isn't closed under the finger.
+    // Only the controllers connected to the laptops in this match (plus whatever a slot already has).
     const options = [];
-    for (const r of m.relays) for (const p of r.ports) options.push({ relay: r.name, port: p });
+    for (const r of m.relays) if (r.joined) for (const p of r.connected || r.ports) options.push({ relay: r.name, port: p });
+    for (const s of m.slots) if (s.relay && !options.some((o) => o.relay === s.relay && o.port === s.port)) options.push({ relay: s.relay, port: s.port, gone: true });
     const sig = JSON.stringify([m.slots.map((s) => [s.slot, s.relay, s.port, s.ready, s.status, m.enabled[s.alliance]]), options, m.started]);
     if (sig !== el.sig && !(el.slots.contains(document.activeElement) && document.activeElement.tagName === "SELECT")) {
       el.sig = sig;
-      el.slots.replaceChildren(...m.slots.map((s) => {
-        const sel = h("select", { disabled: m.started, "aria-label": `Controller for ${s.label}`, onchange: (e) => {
+      el.slots.replaceChildren(...allianceColumns(m.slots, (s) => {
+        const sel = h("select", { disabled: m.started || !gm, "aria-label": `Controller for ${s.label}`, onchange: (e) => {
           const v = e.target.value;
           if (!v) return act({ action: "assign", slot: s.slot, clear: true });
           const [relay, port] = JSON.parse(v); act({ action: "assign", slot: s.slot, relay, port });
-        } }, h("option", { value: "" }, "- choose a controller -"),
-          options.map((o) => h("option", { value: JSON.stringify([o.relay, o.port]), selected: o.relay === s.relay && o.port === s.port }, `${o.relay} · ${o.port}`)));
+        } }, h("option", { value: "" }, options.some((o) => !o.gone) ? "- choose a controller -" : m.joined.length ? "- no controller connected -" : "- join a laptop first -"),
+          options.filter((o) => !o.gone || (o.relay === s.relay && o.port === s.port)).map((o) =>
+            h("option", { value: JSON.stringify([o.relay, o.port]), selected: o.relay === s.relay && o.port === s.port }, `${o.relay} · ${o.port}${o.gone ? " (not connected)" : ""}`)));
         const pill = m.started ? (m.enabled[s.alliance] ? ["on", "ENABLED"] : ["off", "DISABLED"]) : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
         return h("div", { class: "slot " + s.alliance },
           h("h3", {}, s.label, h("span", { class: "pill " + pill[0] }, pill[1])),
           h("div", { class: "st" }, s.status), sel);
       }));
     }
-    const lsig = JSON.stringify([m.relays, m.started]);
+    // Laptops: the online ones, plus any that joined and went away (they keep their side until removed).
+    const gone = m.members.filter((x) => !x.online).map((x) => ({ name: x.name, ports: [], joined: true, alliance: x.alliance, offline: true }));
+    const laptops = [...m.relays, ...gone];
+    const lsig = JSON.stringify([laptops, m.started]);
     if (lsig !== el.lsig) {
       el.lsig = lsig;
-      el.laptops.replaceChildren(...(m.relays.length ? m.relays.map((r) => h("div", { class: "laptop" },
+      el.laptops.replaceChildren(...(laptops.length ? laptops.map((r) => h("div", { class: "laptop" },
         h("span", {}, h("b", {}, r.name), r.name === usb.name ? h("span", { class: "muted" }, " (this laptop)") : null,
-          h("br"), h("span", { class: "muted" }, r.ports.length ? plural(r.ports.length, "controller") + ": " + r.ports.join(", ") : "no controllers")),
-        r.joined ? h("span", { class: "pill ok" }, "JOINED") : h("button", { class: "small gold", disabled: m.started, onclick: () => act({ action: "join", relay: r.name }) }, "Join")))
+          h("br"), h("span", { class: "muted" }, r.offline ? "offline" : r.ports.length ? plural(r.ports.length, "controller") + ": " + r.ports.join(", ") : "no controllers")),
+        h("span", { class: "row" },
+          r.joined ? h("span", { class: "pill " + (r.alliance ? "" : "ok"), style: r.alliance ? `background:var(--${r.alliance});color:#0b0b0f` : "" }, r.alliance ? `${r.alliance.toUpperCase()} ALLIANCE` : "JOINED") : null,
+          gm && r.joined && !m.started ? h("button", { class: "small ghost", onclick: () => {
+            if (confirm(`Remove ${r.name} from this match?${r.alliance ? ` The ${r.alliance} alliance becomes free.` : ""}`)) act({ action: "kick", relay: r.name });
+          } }, "Remove") : null,
+          gm && !r.joined ? h("button", { class: "small gold", disabled: m.started, onclick: () => act({ action: "join", relay: r.name }) }, "Join") : null)))
         : [h("p", { class: "muted", style: "margin:0" }, "No laptops online. On each laptop with controllers, open this site in Chrome or Edge and press Connect controller.")]));
     }
     $("warn").style.display = m.storage === "memory" ? "block" : "none";
     sounds(m);
+  }
+
+  // The game master ended it: the same result on every screen, and nothing left to press but what comes next.
+  function showEnded(m) {
+    stopPolling();
+    if (prev && prev.code === m.code && !prev.ended) tone(440, 900);
+    prev = m;
+    if (store.get("vexnetLastMatch") === code) store.set("vexnetLastMatch", "");
+    setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
+    const when = new Date(m.endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    app.replaceChildren(
+      h("div", { class: "panel final" },
+        h("h1", {}, "Match ended"),
+        h("p", { class: "lead", style: "margin:0" }, `${m.typeTitle} · ${m.code} · ended by the game master at ${when}`),
+        h("p", { class: "status" }, m.status),
+        h("p", { class: "clock" }, m.clockText),
+        h("p", { class: "muted" }, "Every robot was released: it waits disabled for the next match.")),
+      h("div", { class: "section slots" }, allianceColumns(m.slots, (s) => h("div", { class: "slot " + s.alliance },
+        h("h3", {}, s.label), h("div", { class: "st" }, s.relay ? `${s.relay} · ${s.port}` : "no controller")))),
+      h("div", { class: "section actions" },
+        gm ? h("button", { class: "big primary", onclick: () => go("#/create") }, "Create the next match", h("small", {}, "Same laptops: they join it with the new code")) : null,
+        h("button", { class: "big", onclick: () => go("#/") }, "Home", h("small", {}, gm ? "" : "Join the next match with its new code"))));
   }
 
   async function poll() {
@@ -499,6 +732,7 @@ function viewMatch(code) {
       const r = await get("/api/match?code=" + code);
       if (r.status === 404) {
         stopPolling(); if (store.get("vexnetLastMatch") === code) store.set("vexnetLastMatch", "");
+        if (store.get("vexnetJoinedMatch") === code) store.set("vexnetJoinedMatch", "");
         app.replaceChildren(backButton(), h("h1", {}, "Match not found"), h("p", { class: "lead" }, "That match was closed or the code is wrong."),
           h("button", { class: "small gold", onclick: () => go("#/") }, "Go home"));
         return;
@@ -510,8 +744,59 @@ function viewMatch(code) {
   poll(); timer = setInterval(poll, 300);
 }
 
+// ─── Broadcast: the match full screen on a TV ─────────────────────────────────
+// Read-only and fills the screen (sizes follow the screen's height, so a 1080p or 4K TV reads the same from across
+// the room). No top bar, no controllers panel. One tap first: browsers only play sound after one, and it goes full screen.
+function viewTv(code) {
+  document.body.classList.add("tv");
+  const el = {};
+  el.title = h("div", { class: "title" }); el.code = h("div", { class: "tvcode" }, code);
+  el.status = h("div", { class: "tvstatus" }); el.clock = h("div", { class: "tvclock" });
+  el.sides = h("div", { class: "tvsides" }); el.join = h("div", { class: "tvjoin" });
+  const tap = h("button", { class: "tvtap", onclick: () => {
+    audioUnlock(); tone(1, 1); tap.remove();
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  } }, h("span", {}, "Tap to start the broadcast (sound + full screen)"));
+  app.replaceChildren(h("div", { class: "tvwrap" },
+    h("div", { class: "tvtop" }, h("img", { src: "/qcu-robotics-logo.png", alt: "QCU Robotics" }), el.title, el.code),
+    el.status, el.clock, el.sides, el.join), tap,
+    h("button", { class: "small ghost tvexit", onclick: () => { setRole(code, ""); document.exitFullscreen?.().catch(() => {}); go("#/role/" + code); } }, "Exit broadcast"));
+
+  function render(m) {
+    el.title.textContent = m.typeTitle;
+    el.status.textContent = m.ended ? "MATCH ENDED" : m.phase === "ready" ? "WAITING TO START" : m.status;
+    el.clock.textContent = m.clockText; el.clock.style.color = m.ended ? "var(--gray)" : m.clockColor;
+    const sides = ["red", "blue"].filter((a) => m.slots.some((s) => s.alliance === a));
+    el.sides.className = "tvsides" + (sides.length === 1 ? " one" : "");
+    const sig = JSON.stringify([m.slots.map((s) => [s.slot, s.relay, s.ready]), m.enabled, m.started, m.ended]);
+    if (sig !== el.sig) {
+      el.sig = sig;
+      el.sides.replaceChildren(...sides.map((a) => h("div", { class: "tvside " + a },
+        h("h3", {}, `${a.toUpperCase()} ALLIANCE`),
+        m.slots.filter((s) => s.alliance === a).map((s) => {
+          const pill = m.ended ? ["", "DONE"] : m.started ? (m.enabled[a] ? ["on", "ENABLED"] : ["off", "DISABLED"])
+            : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
+          return h("div", { class: "tvrobot" }, s.label, h("span", { class: "pill " + pill[0] }, pill[1]));
+        }))));
+    }
+    // Before the match: how to join, big enough to read from the pits.
+    el.join.replaceChildren(...(m.started || m.ended ? [] : ["Join at ", h("b", {}, location.host), " with code ", h("b", {}, m.code)]));
+    sounds(m);
+  }
+
+  async function poll() {
+    try {
+      const r = await get("/api/match?code=" + code);
+      if (r.status === 404) { el.status.textContent = "NO MATCH WITH THIS CODE"; el.clock.textContent = "-:--"; return; }
+      render(r.data);
+    } catch (e) { el.status.textContent = "RECONNECTING..."; }
+  }
+  poll(); timer = setInterval(poll, 300);
+}
+
 // ─── This laptop's controllers (USB, no relay.py needed) ───────────────────────
-const usb = UsbRelay.create({ getPin: () => pin, onChange: () => renderUsb() });
+// An alliance laptop reports with the code of the match it joined; the game master's laptop with the PIN.
+const usb = UsbRelay.create({ getPin: () => pin, getCode: () => store.get("vexnetJoinedMatch"), onChange: () => renderUsb() });
 const usbEl = {};
 function buildUsb() {
   const box = $("usb");
@@ -543,6 +828,9 @@ function renderUsb(force) {
   const sig = JSON.stringify([cs, usb.note(), usb.online()]);
   if (sig === usbEl.sig && !force) return;
   usbEl.sig = sig;
+  // The match finds this laptop's controllers by its name: renaming it mid-match would orphan its robots.
+  const inMatch = cs.some((c) => c.slot);
+  usbEl.name.disabled = inMatch; usbEl.name.title = inMatch ? "Can't rename while this laptop is in a match" : "How this laptop is shown in matches";
   usbEl.list.replaceChildren(...(cs.length ? cs.map((c) => h("div", { class: "ctrl" },
       h("span", {}, h("b", {}, c.name), "  ", h("span", { class: "muted" }, c.slot || "not in a match")),
       h("span", { style: "color:" + (c.ok ? "var(--green)" : "var(--gray)") }, c.robot)))

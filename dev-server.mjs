@@ -1,6 +1,8 @@
 // Local stand-in for Vercel:  npm run dev   ->  http://localhost:3000
 // Serves public/ and runs the api/*.js functions the same way Vercel does. Reads .env.local if present.
 // Not used on Vercel itself (Vercel serves public/ and api/ directly).
+// npm run dev runs it with --watch: the api/*.js modules are loaded once and kept, so without a restart a changed
+// api file keeps its old code while public/ (read on every request) is already new. Memory storage resets with it.
 import { createServer } from 'node:http';
 import { readFile, access } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';

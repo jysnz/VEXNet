@@ -16,6 +16,7 @@ const UsbRelay = (() => {
   const SITE_STALE_MS = 1500;     // website silent this long -> tell robots DISABLED
   const RELEASE_MS = 3000;        // a controller dropped from its match hears "FC OFF" this long
   const REPLY_MS = 300;           // a controller that doesn't answer a packet this fast missed it
+  const REQUEST_MS = 1000;        // a website request slower than this is dropped and retried (robots stay on the last line)
 
   // Timers in a worker: a background tab's own timers get throttled to once a minute, robots time out at 2 s.
   const ticker = new Worker(URL.createObjectURL(new Blob(
@@ -180,8 +181,9 @@ const UsbRelay = (() => {
 
   // ─── The website side ─────────────────────────────────────────────────────
   // getPin: () => the control PIN (the relay endpoint accepts it instead of the relay token).
+  // getCode: () => the match this laptop joined as an alliance: lets it speak for itself in that match without the PIN.
   // onChange: () => called whenever something worth redrawing changed.
-  function create({ getPin, onChange }) {
+  function create({ getPin, getCode = () => "", onChange }) {
     const supported = "serial" in navigator;
     const ctrls = new Map();     // SerialPort -> Controller
     const lastLine = new Map();  // controller name -> last line the website gave it
@@ -231,12 +233,19 @@ const UsbRelay = (() => {
       return null;
     }
 
+    // One slow request must not hold up the next one: past REQUEST_MS it is abandoned and the loop asks again.
     async function api(path, body) {
-      const r = await fetch(path, {
-        method: body ? "POST" : "GET", cache: "no-store",
-        headers: { "Content-Type": "application/json", "X-Pin": getPin() },
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      const abort = new AbortController();
+      const id = nextId++;
+      waiting.set(id, () => abort.abort()); ticker.postMessage({ id, ms: REQUEST_MS });
+      let r;
+      try {
+        r = await fetch(path, {
+          method: body ? "POST" : "GET", cache: "no-store", signal: abort.signal,
+          headers: { "Content-Type": "application/json", "X-Pin": getPin(), "X-Match-Code": getCode() },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } finally { waiting.delete(id); }
       if (r.status === 401) throw Object.assign(new Error("pin"), { pin: true });
       if (!r.ok) throw new Error("website error " + r.status);
       return r.json();
@@ -249,7 +258,8 @@ const UsbRelay = (() => {
             const d = await api("/api/relay?relay=" + encodeURIComponent(name));
             ports = d.ports; clock = d.clock; okAt = Date.now(); note = "";
           } catch (e) {
-            note = e.pin ? "Enter the control PIN to put this laptop's controllers online." : "Can't reach the website - robots told DISABLED.";
+            note = e.pin ? "Join a match as the red or blue alliance to put this laptop's controllers online."
+              : fresh() ? "" : "Can't reach the website - robots told DISABLED.";
           }
           const now = Date.now();
           for (const c of ctrls.values()) c.line = lineFor(c, now);
@@ -262,7 +272,7 @@ const UsbRelay = (() => {
     async function reportLoop() {
       for (;;) {
         // Only a tab that holds controllers speaks for this laptop (a second tab would report none).
-        if (ctrls.size && getPin()) {
+        if (ctrls.size && (getPin() || getCode())) {
           try { await api("/api/relay", { relay: name, robots: list().map((c) => c.status()) }); } catch (e) {}
         }
         await sleep(REPORT_MS);
@@ -306,6 +316,8 @@ const UsbRelay = (() => {
         else robot = s.fcs.startsWith("P|") ? "robot ready" : "robot in field control";
         return { name: c.name, robot, ok: !s.error && s.age != null && s.age <= 2, slot: entry ? `${entry.label} (${entry.code})` : null };
       }),
+      // What the controllers report, for joining a match (the website puts the laptop online with it).
+      reports: () => list().map((c) => c.status()),
       online: () => fresh(),
       clock: () => clock,
       note: () => note,

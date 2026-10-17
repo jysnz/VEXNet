@@ -7,6 +7,6 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "test": "node --test",
-    "dev": "node dev-server.mjs"
+    "dev": "node --watch dev-server.mjs"
   }
 }

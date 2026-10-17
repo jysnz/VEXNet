@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAction, createMatch, derive, fcLineFor, matchView, newCode, normalizeCode, sortPorts, TYPES } from '../api/_engine.js';
+import { applyAction, createMatch, derive, fcLineFor, matchView, newCode, normalizeCode, fillAlliance, relayPorts, sortPorts, TYPES } from '../api/_engine.js';
 
 const T0 = 1_700_000_000_000;
 const rep = (ports, at = T0) => ({ at, robots: ports.map((p) => ({ port: p, fcs: 'P|0|0|0', age: 0.2, error: null })) });
@@ -79,7 +79,7 @@ function readyMatch(type, relays) {
   return act(m, { action: 'autoassign' }, relays);
 }
 
-test('full match: 3-2-1 countdown, autonomous 30 s, 3 s transition, driver 90 s, ended', () => {
+test('full match: 3-2-1, autonomous 30 s, robots wait disabled, referee starts driver: 3-2-1, 90 s, ended', () => {
   const relays = { A: rep(['COM3', 'COM6']) };
   let m = act(readyMatch('M1V1', relays), { action: 'start' }, relays);
   const go = m.startAt;
@@ -101,21 +101,85 @@ test('full match: 3-2-1 countdown, autonomous 30 s, 3 s transition, driver 90 s,
   d = derive(m, go + 12_000);
   assert.equal(d.secsLeft, 18);
 
-  d = derive(m, go + 31_000); // transition: robots disabled, told the driver period is next
-  assert.equal(d.seg.key, 'TRANSITION');
-  assert.deepEqual(d.enabled, { red: false, blue: false });
-  assert.match(fcLineFor(m, 'red1', go + 31_000), /^FC D 0 90 /);
+  // autonomous over: driver control does not start by itself, however long it waits
+  for (const t of [go + 31_000, go + 300_000]) {
+    d = derive(m, t);
+    assert.equal(d.phase, 'waiting');
+    assert.equal(d.seg.key, 'DRIVER');
+    assert.deepEqual(d.enabled, { red: false, blue: false });
+    assert.match(fcLineFor(m, 'red1', t), /^FC D 0 90 /);
+  }
+  assert.equal(matchView(m, relays, go + 31_000).canNext, true);
+  assert.ok(applyAction(m, { action: 'next' }, relays, go + 10_000).error); // not during autonomous
 
-  d = derive(m, go + 33_000); // the moment driver control begins
-  assert.equal(d.seg.key, 'DRIVER');
+  const at = go + 60_000;
+  m = act(m, { action: 'next' }, relays, at);
+  d = derive(m, at + 1000);
+  assert.equal(d.phase, 'countdown');
+  assert.equal(d.countdown, 2);
+  assert.match(fcLineFor(m, 'red1', at + 1000), /^FC D 0 90 /);
+
+  const go2 = at + 3000;
+  d = derive(m, go2 + 100);
+  assert.equal(d.go, true);
   assert.deepEqual(d.enabled, { red: true, blue: true });
-  assert.match(fcLineFor(m, 'red1', go + 33_000), /^FC D 1 90 /);
-  assert.match(fcLineFor(m, 'red1', go + 34_000), /^FC D 1 89 /);
+  assert.match(fcLineFor(m, 'red1', go2 + 100), /^FC D 1 90 /);
+  assert.match(fcLineFor(m, 'red1', go2 + 1000), /^FC D 1 89 /);
 
-  d = derive(m, go + 124_000);
+  d = derive(m, go2 + 91_000);
   assert.equal(d.phase, 'ended');
   assert.deepEqual(d.enabled, { red: false, blue: false });
-  assert.match(fcLineFor(m, 'red1', go + 124_000), /^FC D 0 0 /);
+  assert.match(fcLineFor(m, 'red1', go2 + 91_000), /^FC D 0 0 /);
+});
+
+test('skip autonomous: robots disabled until the referee starts driver control', () => {
+  const relays = { A: rep(['COM3', 'COM6']) };
+  const ready = readyMatch('M1V1', relays);
+  assert.equal(matchView(ready, relays, T0).canSkipAuto, true);
+  let m = act(ready, { action: 'start', skipAuto: true }, relays);
+  let d = derive(m, T0 + 60_000);
+  assert.equal(d.phase, 'waiting');
+  assert.match(d.status, /AUTONOMOUS SKIPPED/);
+  assert.deepEqual(d.enabled, { red: false, blue: false });
+  assert.match(fcLineFor(m, 'red1', T0 + 60_000), /^FC D 0 90 /);
+
+  m = act(m, { action: 'next' }, relays, T0 + 60_000);
+  assert.equal(derive(m, T0 + 61_000).phase, 'countdown');
+  assert.match(fcLineFor(m, 'red1', T0 + 63_500), /^FC D 1 90 /);
+
+  // skills matches have nothing to skip
+  const skills = readyMatch('SKILLS_DRIVER', { A: rep(['COM3']) });
+  assert.equal(matchView(skills, { A: rep(['COM3']) }, T0).canSkipAuto, false);
+  assert.ok(applyAction(skills, { action: 'start', skipAuto: true }, { A: rep(['COM3']) }, T0).error);
+});
+
+test('driver control pauses (robots disabled, clock frozen) and resumes where it was', () => {
+  const relays = { A: rep(['COM3', 'COM6']) };
+  let m = act(readyMatch('M1V1', relays), { action: 'start', skipAuto: true }, relays);
+  m = act(m, { action: 'next' }, relays, T0);
+  const go = T0 + 3000;
+  assert.ok(applyAction(m, { action: 'pause' }, relays, T0 + 1000).error); // not in the countdown
+
+  m = act(m, { action: 'pause' }, relays, go + 20_000);
+  for (const t of [go + 21_000, go + 200_000]) {
+    const d = derive(m, t);
+    assert.equal(d.phase, 'paused');
+    assert.equal(d.secsLeft, 70);
+    assert.deepEqual(d.enabled, { red: false, blue: false });
+    assert.match(fcLineFor(m, 'red1', t), /^FC D 0 70 /);
+  }
+  assert.ok(applyAction(m, { action: 'pause' }, relays, go + 30_000).error);
+
+  m = act(m, { action: 'resume' }, relays, go + 200_000);
+  let d = derive(m, go + 200_000);
+  assert.equal(d.phase, 'running');
+  assert.equal(d.secsLeft, 70);
+  assert.match(fcLineFor(m, 'red1', go + 200_000), /^FC D 1 70 /);
+  assert.equal(derive(m, go + 270_000).phase, 'ended');
+
+  // autonomous cannot be paused
+  const auto = act(readyMatch('M1V1', relays), { action: 'start' }, relays);
+  assert.ok(applyAction(auto, { action: 'pause' }, relays, auto.startAt + 5000).error);
 });
 
 test('autonomous run id stays the same through AUTO and changes for the next match', () => {
@@ -180,4 +244,130 @@ test('assigning a controller that is already used moves it; clearing a slot work
   m = act(m, { action: 'assign', slot: 'blue1', clear: true }, relays);
   assert.equal(m.assign.blue1, null);
   assert.ok(applyAction(m, { action: 'assign', slot: 'red1', relay: 'A', port: 'COM99' }, relays, T0).error);
+});
+
+test('only controllers connected to their laptop can be assigned', () => {
+  const relays = { A: { at: T0, robots: [
+    { port: 'COM3', fcs: 'P|0|0|0', age: 0.2, error: null },
+    { port: 'COM6', fcs: null, age: null, error: 'unplugged' },
+  ] } };
+  let m = createMatch('M1V1', 'ABC123', T0);
+  assert.ok(applyAction(m, { action: 'assign', slot: 'red1', relay: 'A', port: 'COM6' }, relays, T0).error);
+  m = act(act(m, { action: 'join', relay: 'A' }, relays), { action: 'autoassign' }, relays);
+  assert.deepEqual(m.assign.red1, { relay: 'A', port: 'COM3' });
+  assert.equal(m.assign.blue1, null);
+  assert.deepEqual(matchView(m, relays, T0).relays[0].connected, ['COM3']);
+});
+
+test("joining as an alliance puts that laptop's controllers in that alliance's slots", () => {
+  const relays = { A: rep(['COM3']), B: rep(['COM4', 'COM5']) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, relays);   // blue joins first: still blue
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  assert.deepEqual(m.assign.blue1, { relay: 'B', port: 'COM4' });
+  assert.deepEqual(m.assign.blue2, { relay: 'B', port: 'COM5' });
+  assert.deepEqual(m.assign.red1, { relay: 'A', port: 'COM3' });
+  assert.equal(m.assign.red2, null);
+  assert.deepEqual(m.roles, { B: 'blue', A: 'red' });
+  const v = matchView(m, relays, T0);
+  assert.equal(v.relays.find((r) => r.name === 'B').alliance, 'blue');
+  // auto-assign keeps every laptop on its own side
+  m = act(m, { action: 'autoassign' }, relays);
+  assert.deepEqual([m.assign.red1.relay, m.assign.blue1.relay, m.assign.blue2.relay], ['A', 'B', 'B']);
+});
+
+test('alliance joins: one laptop per side, missing side, switching sides', () => {
+  const relays = { A: rep(['COM3']), B: rep(['COM4']) };
+  let m = createMatch('M1V1', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  assert.match(applyAction(m, { action: 'join', relay: 'B', alliance: 'red' }, relays, T0).error, /red alliance is already taken by A/);
+  assert.match(applyAction(createMatch('SKILLS_AUTO', 'ABC123', T0), { action: 'join', relay: 'A', alliance: 'blue' }, relays, T0).error, /no blue/);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'blue' }, relays);   // changed their mind: red is free again
+  assert.equal(m.assign.red1, null);
+  assert.deepEqual(m.assign.blue1, { relay: 'A', port: 'COM3' });
+  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);
+  assert.deepEqual(matchView(m, relays, T0).alliances, { red: 'B', blue: 'A' });
+  // leaving frees the side
+  m = act(m, { action: 'leave', relay: 'B' }, relays);
+  assert.deepEqual(matchView(m, relays, T0).alliances, { red: null, blue: 'A' });
+});
+
+test('an alliance joins before its controllers: they take its slots when they connect', () => {
+  let relays = { A: rep([]) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);   // no controller: no prompt, no error
+  assert.deepEqual([m.assign.red1, m.assign.red2], [null, null]);
+  relays = { A: rep(['CTRL1']) };
+  m = fillAlliance(m, 'A', relays.A);
+  assert.deepEqual(m.assign.red1, { relay: 'A', port: 'CTRL1' });
+  relays = { A: rep(['CTRL1', 'CTRL2']) };
+  m = fillAlliance(m, 'A', relays.A);
+  assert.deepEqual(m.assign.red2, { relay: 'A', port: 'CTRL2' });
+  assert.equal(fillAlliance(m, 'A', relays.A), null);   // nothing new: no write
+  assert.equal(m.assign.blue1, null);                    // never the other side
+  const running = { ...m, assign: { ...m.assign, red2: null }, period: 0, startAt: T0 };
+  assert.equal(fillAlliance(running, 'A', relays.A), null);   // nothing moves once the match has started
+});
+
+test('one game master: the first device claims it, others need a takeover; controls follow that device', () => {
+  const relays = { A: rep(['COM3']), B: rep(['COM4']) };
+  let m = createMatch('M1V1', 'ABC123', T0);
+  m = act(m, { action: 'claim', device: 'dev-1' }, relays);
+  assert.match(applyAction(m, { action: 'claim', device: 'dev-2' }, relays, T0).error, /already has a game master/);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, relays);
+  assert.match(applyAction(m, { action: 'start', device: 'dev-2' }, relays, T0).error, /only the game master/);
+  assert.match(applyAction(m, { action: 'start' }, relays, T0).error, /only the game master/);
+  assert.equal(applyAction(m, { action: 'start', device: 'dev-1' }, relays, T0).error, undefined);
+  m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays);   // dev-1 went away
+  assert.equal(matchView(m, relays, T0).gmDevice, 'dev-2');
+  assert.match(applyAction(m, { action: 'start', device: 'dev-1' }, relays, T0).error, /only the game master/);
+  m = act(m, { action: 'kick', relay: 'A', device: 'dev-2' }, relays);
+  assert.deepEqual(m.joined, ['B']);
+  m = act(m, { action: 'unclaim', device: 'dev-2' }, relays);
+  assert.equal(m.gm, null);
+});
+
+test('1v1 on two laptops: a laptop left in an older match still follows the match it is playing', () => {
+  // B tried a Skills run first and nobody closed it; then the 1v1 started. Storage order must not matter.
+  const relays = { A: rep(['CTRL1']), B: rep(['CTRL1']) };
+  let old = createMatch('SKILLS_DRIVER', 'OLD111', T0 - 600_000);
+  old = act(old, { action: 'join', relay: 'B', alliance: 'red' }, relays, T0 - 600_000);
+  let m = createMatch('M1V1', 'NEW222', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, relays);
+  m = act(m, { action: 'start' }, relays);
+  const now = T0 + 3_000 + 5_000;   // autonomous, 5 s in
+  for (const order of [[old, m], [m, old]]) {
+    assert.match(relayPorts(order, 'B', now).ports.CTRL1.line, /^FC A 1 25 /);
+    assert.equal(relayPorts(order, 'B', now).ports.CTRL1.code, 'NEW222');
+    assert.match(relayPorts(order, 'A', now).ports.CTRL1.line, /^FC A 1 25 /);
+  }
+  // with nothing running, the newest match wins
+  const idle = act(m, { action: 'reset' }, relays, now);
+  assert.equal(relayPorts([idle, old], 'B', now).ports.CTRL1.code, 'NEW222');
+});
+
+test('END MATCH: final time kept, robots released, nothing can restart or join it', () => {
+  const relays = { A: rep(['CTRL1']), B: rep(['CTRL1']) };
+  let m = createMatch('M1V1', 'END111', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, relays);
+  m = act(m, { action: 'start' }, relays);
+  const at = T0 + 3_000 + 12_000;   // autonomous, 12 s in
+  assert.ok(relayPorts([m], 'A', at).ports.CTRL1.line);
+  m = act(m, { action: 'end' }, relays, at);
+  const v = matchView(m, relays, at + 60_000);
+  assert.equal(v.ended, true);
+  assert.equal(v.clockText, '0:18');   // frozen where it was ended
+  assert.equal(v.status, 'MATCH STOPPED');
+  assert.deepEqual([v.canStart, v.canReset, v.canNext, v.canPause], [false, false, false, false]);
+  // no entry for its controllers: the relays send FC OFF and hand the robots back
+  assert.deepEqual(relayPorts([m], 'A', at + 1).ports, {});
+  assert.equal(fcLineFor(m, 'red1', at + 1), null);
+  for (const a of [{ action: 'reset' }, { action: 'start' }, { action: 'join', relay: 'A', alliance: 'red' }])
+    assert.match(applyAction(m, a, relays, at + 1).error, /has ended/);
+  assert.equal(act(m, { action: 'end' }, relays, at + 5).endedAt, at);   // ending twice changes nothing
+  // a lobby that never started can be ended too
+  assert.equal(matchView(act(createMatch('M1V1', 'END222', T0), { action: 'end' }, relays), relays, T0).ended, true);
 });
