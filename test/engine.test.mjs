@@ -280,16 +280,16 @@ test('alliance joins: one laptop per side, missing side, switching sides', () =>
   const relays = { A: rep(['COM3']), B: rep(['COM4']) };
   let m = createMatch('M1V1', 'ABC123', T0);
   m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
-  assert.match(applyAction(m, { action: 'join', relay: 'B', alliance: 'red' }, relays, T0).error, /red alliance is already taken by A/);
+  assert.match(applyAction(m, { action: 'join', relay: 'B', alliance: 'red' }, relays, T0).error, /red alliance is full \(A\)/);
   assert.match(applyAction(createMatch('SKILLS_AUTO', 'ABC123', T0), { action: 'join', relay: 'A', alliance: 'blue' }, relays, T0).error, /no blue/);
   m = act(m, { action: 'join', relay: 'A', alliance: 'blue' }, relays);   // changed their mind: red is free again
   assert.equal(m.assign.red1, null);
   assert.deepEqual(m.assign.blue1, { relay: 'A', port: 'COM3' });
   m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);
-  assert.deepEqual(matchView(m, relays, T0).alliances, { red: 'B', blue: 'A' });
+  assert.deepEqual(matchView(m, relays, T0).alliances, { red: ['B'], blue: ['A'] });
   // leaving frees the side
   m = act(m, { action: 'leave', relay: 'B' }, relays);
-  assert.deepEqual(matchView(m, relays, T0).alliances, { red: null, blue: 'A' });
+  assert.deepEqual(matchView(m, relays, T0).alliances, { red: [], blue: ['A'] });
 });
 
 test('an alliance joins before its controllers: they take its slots when they connect', () => {
@@ -380,4 +380,32 @@ test('the game master claim names its laptop, so the laptop list can mark it', (
   assert.equal(matchView(m, relays, T0).gmLaptop, 'A');
   m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays);   // a phone or tablet: no laptop
   assert.equal(matchView(m, relays, T0).gmLaptop, null);
+});
+
+test('2v2: two laptops per side, one robot each; a third is turned away', () => {
+  const relays = { R1: rep(['CTRL1']), R2: rep(['CTRL1']), B1: rep(['CTRL1']), B2: rep(['CTRL1']), X: rep(['CTRL1']) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  for (const [relay, alliance] of [['R1', 'red'], ['B1', 'blue'], ['R2', 'red'], ['B2', 'blue']]) m = act(m, { action: 'join', relay, alliance }, relays);
+  assert.deepEqual(['red1', 'red2', 'blue1', 'blue2'].map((s) => m.assign[s].relay), ['R1', 'R2', 'B1', 'B2']);
+  const v = matchView(m, relays, T0);
+  assert.deepEqual(v.alliances, { red: ['R1', 'R2'], blue: ['B1', 'B2'] });
+  assert.deepEqual(v.seats, { red: 2, blue: 2 });
+  assert.equal(v.canStart, true);
+  assert.match(applyAction(m, { action: 'join', relay: 'X', alliance: 'red' }, relays, T0).error, /red alliance is full \(R1, R2\)/);
+  // 1v1 still takes one laptop per side
+  const one = act(createMatch('M1V1', 'ABC123', T0), { action: 'join', relay: 'R1', alliance: 'red' }, relays);
+  assert.match(applyAction(one, { action: 'join', relay: 'R2', alliance: 'red' }, relays, T0).error, /full/);
+});
+
+test('2v2: a red laptop with both controllers drives both robots until a second red laptop joins', () => {
+  let relays = { A: rep(['CTRL1', 'CTRL2']), B: rep([]) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, { relay: 'A', port: 'CTRL2' }]);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);   // B has no controller yet
+  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, null]);   // A handed back RED 2
+  relays = { ...relays, B: rep(['CTRL1']) };
+  m = fillAlliance(m, 'B', relays.B);
+  assert.deepEqual(m.assign.red2, { relay: 'B', port: 'CTRL1' });
+  assert.equal(fillAlliance(m, 'A', relays.A), null);   // A doesn't take it back while B is on red
 });

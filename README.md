@@ -23,7 +23,7 @@ runs the whole match: 3-2-1, autonomous, driver control.
 ## How a match goes
 
 Everyone picks a role when they create or join a match: **Red alliance**, **Blue alliance** or **Game master**.
-Each role has one holder per match: **one red laptop, one blue laptop, one game-master device**. Only the game master (the PIN, on the
+Each side takes **one laptop per robot** (1 v 1: one red and one blue laptop; 2 v 2: two of each, one robot each), and there is **one game-master device**. **Leave match** (top of the match page) gives up your place and goes home. Only the game master (the PIN, on the
 device that claimed it) runs the match; the alliances' laptops only drive their own robots. A taken role shows who has it.
 
 1. **Every laptop with controllers** opens the website in Chrome/Edge and presses **Connect controller** (or runs the relay, below).

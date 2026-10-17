@@ -182,8 +182,9 @@ const UsbRelay = (() => {
   // ─── The website side ─────────────────────────────────────────────────────
   // getPin: () => the control PIN (the relay endpoint accepts it instead of the relay token).
   // getCode: () => the match this laptop joined as an alliance: lets it speak for itself in that match without the PIN.
+  // inMatch: () => this laptop is in a match: keep it online even with no controller connected (yet).
   // onChange: () => called whenever something worth redrawing changed.
-  function create({ getPin, getCode = () => "", onChange }) {
+  function create({ getPin, getCode = () => "", inMatch = () => false, onChange }) {
     const supported = "serial" in navigator;
     const ctrls = new Map();     // SerialPort -> Controller
     const lastLine = new Map();  // controller name -> last line the website gave it
@@ -269,10 +270,18 @@ const UsbRelay = (() => {
       }
     }
 
+    // Tabs of this site on this laptop: one holding controllers says so, so a tab without any never reports an
+    // empty list over its report. With no tab holding any, a laptop that is in a match still reports (no controllers)
+    // and stays online: the match shows it as there, not offline.
+    let heldElsewhereAt = 0;
+    const tabs = "BroadcastChannel" in window ? new BroadcastChannel("vexnet-usb") : null;
+    if (tabs) tabs.onmessage = (e) => { if (e.data?.holder === name) heldElsewhereAt = Date.now(); };
+
     async function reportLoop() {
       for (;;) {
-        // Only a tab that holds controllers speaks for this laptop (a second tab would report none).
-        if (ctrls.size && (getPin() || getCode())) {
+        if (ctrls.size) tabs?.postMessage({ holder: name });
+        const speak = ctrls.size || (inMatch() && Date.now() - heldElsewhereAt > 3 * REPORT_MS);
+        if (speak && (getPin() || getCode())) {
           try { await api("/api/relay", { relay: name, robots: list().map((c) => c.status()) }); } catch (e) {}
         }
         await sleep(REPORT_MS);
@@ -286,6 +295,7 @@ const UsbRelay = (() => {
     }
 
     if (supported) {
+      start();   // reports start at once: a laptop in a match is online before (or without) any controller
       // Controllers this site was allowed to use before reconnect by themselves, on load and when replugged.
       navigator.serial.getPorts().then((ps) => ps.forEach(add));
       navigator.serial.addEventListener("connect", (e) => add(e.target));

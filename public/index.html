@@ -297,7 +297,7 @@ function backButton() {
 
 function route() {
   pagesSeen++;
-  stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0);
+  stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0); gmLaptopInMatch = false;
   document.body.classList.remove("tv", "nousb");
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   if (parts[0] === "create") return viewCreate();
@@ -458,11 +458,16 @@ function viewRole(code) {
       return;
     }
     const has = (a) => m.slots.some((s) => s.alliance === a);
-    // One laptop per side: taken by another laptop = not for this one. Its own side stays open (to re-join).
-    const holder = (a) => m.alliances[a] && m.alliances[a] !== usb.name ? m.alliances[a] : null;
-    const sideText = (a) => !has(a) ? "Not in this match type."
-      : holder(a) ? `Taken by ${holder(a)}.`
-      : `Your controllers drive the ${a} robots. The game master runs the match.`;
+    // One laptop per robot on each side (2 in a 2v2). Full = no place left for this laptop; its own side stays open.
+    const onSide = (a) => m.alliances[a] || [];
+    const full = (a) => onSide(a).length >= m.seats[a] && !onSide(a).includes(usb.name);
+    const sideText = (a) => {
+      if (!has(a)) return "Not in this match type.";
+      if (full(a)) return `Full: ${onSide(a).join(", ")}.`;
+      const left = m.seats[a] - onSide(a).length;
+      const who = onSide(a).length ? `${onSide(a).join(", ")} joined, room for ${plural(left, "more laptop")}. ` : "";
+      return who + `Your controllers drive ${m.seats[a] > 1 ? `the ${a} robots` : `the ${a} robot`}. The game master runs the match.`;
+    };
     const gmTaken = Boolean(m.gmDevice && m.gmDevice !== device);
     const card = (cls, title, text, onclick, disabled) =>
       h("button", { class: "role " + cls, disabled, onclick: (e) => {
@@ -475,8 +480,8 @@ function viewRole(code) {
         h("div", {}, h("h1", {}, m.typeTitle), h("div", { class: "muted" }, "Who are you in this match?")),
         h("div", { class: "code" }, m.code)),
       h("div", { class: "roles" },
-        card("red", "Red alliance", sideText("red"), () => joinAlliance("red", m), !has("red") || Boolean(holder("red")) || m.started),
-        card("blue", "Blue alliance", sideText("blue"), () => joinAlliance("blue", m), !has("blue") || Boolean(holder("blue")) || m.started),
+        card("red", "Red alliance", sideText("red"), () => joinAlliance("red", m), !has("red") || full("red") || m.started),
+        card("blue", "Blue alliance", sideText("blue"), () => joinAlliance("blue", m), !has("blue") || full("blue") || m.started),
         card("gm", "Game master", gmTaken ? "Taken by another device. Tap to take over (needs the control PIN)."
           : "Starts, pauses and stops the match and assigns controllers. Needs the control PIN.", () => gameMaster(m), false),
         card("tv", "Broadcast", "Shows the match full screen on a TV: the clock and both alliances, nothing to press. Any number of screens.",
@@ -539,7 +544,7 @@ function allianceGuide(m, role) {
   const missing = mine.find((s) => !s.relay), notReady = mine.find((s) => s.relay && !s.ready);
   if (missing) { g.text = `${missing.label} has no controller yet.`; g.sub = "Connect this laptop's controllers (bottom of the page): they take your alliance's robots by themselves."; }
   else if (notReady) { g.text = `${notReady.label} isn't ready: ${notReady.status}.`; g.sub = "Turn the robot on and run its program (VEXNET on). Its controller must be paired to it."; }
-  else { g.text = `Your ${plural(mine.length, "robot")} ${mine.length === 1 ? "is" : "are"} ready.`; g.sub = "Keep this tab open. The game master starts the match."; }
+  else { g.text = `The ${role} alliance is ready: ${plural(mine.length, "robot")}.`; g.sub = "Keep this tab open. The game master starts the match."; }
   return g;
 }
 
@@ -592,7 +597,9 @@ function viewMatch(code) {
     el.youare = h("div", { class: "youare " + role },
       h("span", {}, "You are: ", ROLE_NAME[role], h("span", { class: "muted", style: "font-weight:400" },
         gm ? " - you run the match." : role === "watch" ? "" : " - the game master runs the match.")),
-      h("button", { class: "small ghost", onclick: changeRole }, "Change role"));
+      h("span", { class: "row" },
+        h("button", { class: "small ghost", onclick: changeRole }, "Change role"),
+        h("button", { class: "small red", onclick: leaveMatch }, "Leave match")));
     app.replaceChildren(...[backButton(), el.youare,
       h("div", { class: "row between", style: "margin-bottom:12px" },
         h("div", {}, el.title, h("div", { class: "muted" }, "Other laptops join with this code")),
@@ -607,23 +614,39 @@ function viewMatch(code) {
   }
 
   // Giving up your place: an alliance frees its side, the game master frees the controls for another device.
-  async function changeRole() {
-    if (role === "red" || role === "blue") await post({ action: "leave", code, relay: store.get("vexnetRelay") || usb.name }, false);
+  // Giving up this device's place: an alliance laptop frees its spot (before START), the game master frees the controls.
+  async function giveUpPlace() {
+    if (role === "red" || role === "blue") await post({ action: "leave", code, relay: store.get("vexnetRelay") || usb.name }, false).catch(() => {});
     if (gm) await post({ action: "unclaim", code }).catch(() => {});
     if (store.get("vexnetJoinedMatch") === code && role !== "gm") store.set("vexnetJoinedMatch", "");
-    setRole(code, ""); go("#/role/" + code);
+    setRole(code, "");
+  }
+  async function changeRole() { await giveUpPlace(); go("#/role/" + code); }
+
+  // Leave the room: out of this match altogether, back home. Mid-match an alliance laptop's robots stop
+  // hearing from it and disable themselves within 2 s, so it asks first.
+  async function leaveMatch() {
+    const live = el.lastPhase && ["countdown", "running", "paused", "waiting"].includes(el.lastPhase);
+    const robots = role === "red" || role === "blue";
+    if (!confirm(live && robots ? "The match is running: leaving disables your robots. Leave anyway?"
+      : live && gm ? "The match is running and you are the game master: nobody can pause or stop it until another device takes over. Leave anyway?"
+      : "Leave this match?")) return;
+    stopPolling(); await giveUpPlace();
+    if (store.get("vexnetLastMatch") === code) store.set("vexnetLastMatch", "");
+    go("#/");
   }
 
   // Someone else has this seat now (a takeover, or the game master removed this laptop): back to choosing.
   function lostSeat(m) {
     if (gm && m.gmDevice && m.gmDevice !== device) return "Another device took over as game master.";
-    if ((role === "red" || role === "blue") && !m.started && m.alliances[role] !== (store.get("vexnetRelay") || usb.name))
+    if ((role === "red" || role === "blue") && !m.started && !(m.alliances[role] || []).includes(store.get("vexnetRelay") || usb.name))
       return `This laptop is no longer the ${role} alliance.`;
     return null;
   }
 
   function render(m) {
     if (m.ended) return showEnded(m);
+    el.lastPhase = m.phase;
     const lost = lostSeat(m);
     if (lost) {
       setRole(code, ""); stopPolling();
@@ -631,7 +654,11 @@ function viewMatch(code) {
       alert(lost); return go("#/role/" + code);
     }
     // A game master from before claims existed (or one that let go): this device takes the empty seat.
-    if (gm && !m.gmDevice && !el.claiming) { el.claiming = true; post({ action: "claim", code, laptop: usb.name }).finally(() => { el.claiming = false; }); }
+    // Also when this device holds it but under no laptop name (claimed before names were sent) or an old one.
+    if (gm && (!m.gmDevice || (m.gmDevice === device && m.gmLaptop !== usb.name)) && !el.claiming) {
+      el.claiming = true; post({ action: "claim", code, laptop: usb.name }).finally(() => { el.claiming = false; });
+    }
+    gmLaptopInMatch = gm && m.joined.includes(usb.name);
     if (!built) build(m);
     store.set("vexnetLastMatch", m.code);
     setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
@@ -800,7 +827,10 @@ function viewTv(code) {
 
 // ─── This laptop's controllers (USB, no relay.py needed) ───────────────────────
 // An alliance laptop reports with the code of the match it joined; the game master's laptop with the PIN.
-const usb = UsbRelay.create({ getPin: () => pin, getCode: () => store.get("vexnetJoinedMatch"), onChange: () => renderUsb() });
+// gmLaptopInMatch: the game master's own laptop is one of the match's laptops (set by the match page).
+let gmLaptopInMatch = false;
+const usb = UsbRelay.create({ getPin: () => pin, getCode: () => store.get("vexnetJoinedMatch"),
+  inMatch: () => Boolean(store.get("vexnetJoinedMatch")) || gmLaptopInMatch, onChange: () => renderUsb() });
 const usbEl = {};
 function buildUsb() {
   const box = $("usb");

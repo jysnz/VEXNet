@@ -63,7 +63,7 @@ export function createMatch(type, code, now) {
     type,
     createdAt: now,
     joined: [], // relay (laptop) names, in the order they joined
-    roles: {}, // relay -> 'red' | 'blue': the alliance a laptop joined as (its controllers drive that alliance). One laptop per side.
+    roles: {}, // relay -> 'red' | 'blue': the alliance a laptop joined as. A side takes one laptop per robot (2 in a 2v2).
     gm: null, // {device, at}: the one device running the match (it also needs the PIN)
     assign: Object.fromEntries(TYPES[type].slots.map((s) => [s, null])), // slot -> {relay, port}
     period: null, // index of the current period in the program; null before START
@@ -179,15 +179,23 @@ export function relayPorts(matches, relay, now) {
   return { ports, clock };
 }
 
+// The laptops that joined as this side, in join order.
+export const sideLaptops = (m, side) => m.joined.filter((r) => m.roles?.[r] === side);
+
 // An alliance laptop's controllers take its side's empty slots, in port order, whenever they show up: at the
-// join, or later when they are connected (relay reports). Returns the changed match, or null if nothing changed.
+// join, or later when they are connected (relay reports). A laptop keeps one slot free for each other laptop on
+// its side, so with two red laptops in a 2v2 each drives one robot; alone it can drive both.
+// Returns the changed match, or null if nothing changed.
 export function fillAlliance(m, relay, rep) {
   const side = m.roles?.[relay];
   if (!side || isStarted(m) || m.endedAt) return null;
   const t = TYPES[m.type];
+  const slots = allianceSlots(m.type, side);
+  const mine = slots.filter((s) => m.assign[s]?.relay === relay).length;
+  const room = slots.length - (sideLaptops(m, side).length - 1) - mine;
   const used = (port) => t.slots.some((s) => m.assign[s]?.relay === relay && m.assign[s]?.port === port);
-  const free = connectedPorts(rep).filter((p) => !used(p));
-  const open = allianceSlots(m.type, side).filter((s) => !m.assign[s]);
+  const free = connectedPorts(rep).filter((p) => !used(p)).slice(0, Math.max(0, room));
+  const open = slots.filter((s) => !m.assign[s]);
   if (!free.length || !open.length) return null;
   const next = structuredClone(m);
   open.forEach((s, i) => { if (free[i]) next.assign[s] = { relay, port: free[i] }; });
@@ -287,8 +295,10 @@ export function matchView(m, relays, now) {
     ended, // the game master ended it: final result, nothing more to do
     gmDevice: m.gm?.device ?? null,
     gmLaptop: m.gm?.laptop ?? null,
-    // who holds each side, online or not (a laptop that went away keeps it until it leaves or is removed)
-    alliances: Object.fromEntries(ALLIANCES.map((a) => [a, Object.keys(m.roles ?? {}).find((r) => m.roles[r] === a) ?? null])),
+    // the laptops on each side, online or not (one that went away keeps its place until it leaves or is removed),
+    // and how many each side takes: one per robot
+    alliances: Object.fromEntries(ALLIANCES.map((a) => [a, sideLaptops(m, a)])),
+    seats: Object.fromEntries(ALLIANCES.map((a) => [a, allianceSlots(m.type, a).length])),
     members: m.joined.map((name) => ({ name, alliance: m.roles?.[name] ?? null, online: Boolean(online[name]) })),
     endedAt: m.endedAt ?? null,
     blockers: started ? [] : blockers,
@@ -332,10 +342,16 @@ export function applyAction(m, act, relays, now) {
         if (!ALLIANCES.includes(act.alliance)) return { error: 'unknown alliance' };
         const mine = allianceSlots(next.type, act.alliance);
         if (!mine.length) return { error: `this match has no ${act.alliance} alliance` };
-        const holder = Object.keys(next.roles).find((r) => next.roles[r] === act.alliance && r !== act.relay);
-        if (holder) return { error: `the ${act.alliance} alliance is already taken by ${holder}` };
+        // One laptop per robot on each side: a 1v1 side takes one laptop, a 2v2 side two.
+        const others = sideLaptops(next, act.alliance).filter((r) => r !== act.relay);
+        if (others.length >= mine.length) return { error: `the ${act.alliance} alliance is full (${others.join(', ')})` };
         // Switching sides: the laptop's controllers leave the other alliance's slots.
         for (const s of t.slots) if (!mine.includes(s) && next.assign[s]?.relay === act.relay) next.assign[s] = null;
+        // Room for the newcomer: a laptop on this side driving more than one robot hands back its last one.
+        for (const r of others) {
+          const held = mine.filter((s) => next.assign[s]?.relay === r);
+          if (held.length > 1 && !mine.some((s) => !next.assign[s])) next.assign[held.at(-1)] = null;
+        }
         next.roles[act.relay] = act.alliance;
         if (!next.joined.includes(act.relay)) next.joined.push(act.relay);
         return { match: fillAlliance(next, act.relay, online[act.relay]) ?? next };
