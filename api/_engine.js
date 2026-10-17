@@ -245,6 +245,10 @@ export function matchView(m, relays, now) {
     const a = m.assign[slot];
     const rep = a ? online[a.relay] : null;
     const robot = rep?.robots?.find((r) => r.port === a?.port);
+    // What is wrong with an assigned controller, if anything: its laptop went away, the controller is no longer in
+    // the laptop's report (pulled out of the USB, or its tab let go of it), or it reports an error (turned off).
+    // The slot keeps the assignment, so plugging it back in (it comes back under the same name) restores it.
+    const problem = !a ? null : !rep ? 'offline' : !robot ? 'unplugged' : robot.error ? 'error' : null;
     return {
       slot,
       label: slotLabel(slot),
@@ -253,7 +257,11 @@ export function matchView(m, relays, now) {
       port: a?.port ?? null,
       relayOnline: Boolean(rep),
       ready: Boolean(a) && Boolean(rep) && robotReady(robot),
-      status: !a ? 'no controller assigned' : !rep ? `laptop ${a.relay} is offline` : describeRobot(robot),
+      problem,
+      status: !a ? 'no controller assigned'
+        : problem === 'offline' ? `laptop ${a.relay} is offline`
+        : problem === 'unplugged' ? `${a.port} is unplugged from ${a.relay} - plug it back in by USB`
+        : describeRobot(robot),
     };
   });
 

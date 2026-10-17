@@ -412,3 +412,22 @@ test('2v2: a red laptop with both controllers drives both robots until a second 
   assert.deepEqual(m.assign.red2, { relay: 'B', port: 'CTRL1' });
   assert.equal(fillAlliance(m, 'A', relays.A), null);   // A doesn't take it back while B is on red
 });
+
+test('a pulled-out controller shows as UNPLUGGED (not waiting); a gone laptop as OFFLINE; a dead one as ERROR', () => {
+  let relays = { A: rep(['CTRL1']), B: rep(['CTRL1']) };
+  let m = createMatch('M1V1', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'blue' }, relays);
+  const slot = (v, s) => v.slots.find((x) => x.slot === s);
+  assert.equal(slot(matchView(m, relays, T0), 'red1').problem, null);
+  relays = { ...relays, A: rep([]) };   // CTRL1 pulled out: laptop A still reports, without it
+  let v = matchView(m, relays, T0);
+  assert.equal(slot(v, 'red1').problem, 'unplugged');
+  assert.match(slot(v, 'red1').status, /CTRL1 is unplugged from A/);
+  assert.equal(v.canStart, false);
+  assert.deepEqual(m.assign.red1, { relay: 'A', port: 'CTRL1' });   // kept: plugging it back in restores it
+  assert.equal(slot(matchView(m, { ...relays, A: rep(['CTRL1']) }, T0), 'red1').problem, null);
+  relays = { A: rep(['CTRL1'], T0 - 60_000), B: { at: T0, robots: [{ port: 'CTRL1', fcs: null, age: null, error: 'controller not answering (turned off?)' }] } };
+  v = matchView(m, relays, T0);
+  assert.deepEqual([slot(v, 'red1').problem, slot(v, 'blue1').problem], ['offline', 'error']);
+});

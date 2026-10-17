@@ -677,7 +677,10 @@ function viewMatch(code) {
         } }, h("option", { value: "" }, options.some((o) => !o.gone) ? "- choose a controller -" : m.joined.length ? "- no controller connected -" : "- join a laptop first -"),
           options.filter((o) => !o.gone || (o.relay === s.relay && o.port === s.port)).map((o) =>
             h("option", { value: JSON.stringify([o.relay, o.port]), selected: o.relay === s.relay && o.port === s.port }, `${o.relay} · ${o.port}${o.gone ? " (not connected)" : ""}`)));
-        const pill = m.started ? (m.enabled[s.alliance] ? ["on", "ENABLED"] : ["off", "DISABLED"]) : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
+        // A controller that is gone says so, before and during the match: its robot can't hear the field.
+        const pill = s.problem ? ["off", s.problem.toUpperCase()]
+          : m.started ? (m.enabled[s.alliance] ? ["on", "ENABLED"] : ["off", "DISABLED"])
+          : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
         return h("div", { class: "slot " + s.alliance },
           h("h3", {}, s.label, h("span", { class: "pill " + pill[0] }, pill[1])),
           h("div", { class: "st" }, s.status), sel);
@@ -768,13 +771,14 @@ function viewTv(code) {
     el.clock.textContent = m.clockText; el.clock.style.color = m.ended ? "var(--gray)" : m.clockColor;
     const sides = ["red", "blue"].filter((a) => m.slots.some((s) => s.alliance === a));
     el.sides.className = "tvsides" + (sides.length === 1 ? " one" : "");
-    const sig = JSON.stringify([m.slots.map((s) => [s.slot, s.relay, s.ready]), m.enabled, m.started, m.ended]);
+    const sig = JSON.stringify([m.slots.map((s) => [s.slot, s.relay, s.ready, s.problem]), m.enabled, m.started, m.ended]);
     if (sig !== el.sig) {
       el.sig = sig;
       el.sides.replaceChildren(...sides.map((a) => h("div", { class: "tvside " + a },
         h("h3", {}, `${a.toUpperCase()} ALLIANCE`),
         m.slots.filter((s) => s.alliance === a).map((s) => {
-          const pill = m.ended ? ["", "DONE"] : m.started ? (m.enabled[a] ? ["on", "ENABLED"] : ["off", "DISABLED"])
+          const pill = m.ended ? ["", "DONE"] : s.problem ? ["off", s.problem.toUpperCase()]
+            : m.started ? (m.enabled[a] ? ["on", "ENABLED"] : ["off", "DISABLED"])
             : s.ready ? ["ok", "READY"] : s.relay ? ["wait", "WAITING"] : ["", "NO CONTROLLER"];
           return h("div", { class: "tvrobot" }, s.label, h("span", { class: "pill " + pill[0] }, pill[1]));
         }))));
