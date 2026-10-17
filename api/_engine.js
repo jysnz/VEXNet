@@ -286,6 +286,7 @@ export function matchView(m, relays, now) {
     canReset: !ended && started,
     ended, // the game master ended it: final result, nothing more to do
     gmDevice: m.gm?.device ?? null,
+    gmLaptop: m.gm?.laptop ?? null,
     // who holds each side, online or not (a laptop that went away keeps it until it leaves or is removed)
     alliances: Object.fromEntries(ALLIANCES.map((a) => [a, Object.keys(m.roles ?? {}).find((r) => m.roles[r] === a) ?? null])),
     members: m.joined.map((name) => ({ name, alliance: m.roles?.[name] ?? null, online: Boolean(online[name]) })),
@@ -346,7 +347,8 @@ export function applyAction(m, act, relays, now) {
       // The game master's device. takeover: replace one that left without letting go (closed tab, other device).
       if (next.gm && next.gm.device !== act.device && !act.takeover) return { error: 'this match already has a game master' };
       if (!act.device) return { error: 'device required' };
-      next.gm = { device: String(act.device).slice(0, 40), at: now };
+      // laptop: the name this browser's laptop goes by in matches, so the laptop list can show which one runs it.
+      next.gm = { device: String(act.device).slice(0, 40), laptop: act.laptop ? String(act.laptop).slice(0, 40) : null, at: now };
       return { match: next };
     }
     case 'unclaim':

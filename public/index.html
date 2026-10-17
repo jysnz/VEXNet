@@ -86,6 +86,8 @@
   .youare.red { border-color:var(--red); } .youare.blue { border-color:var(--blue); } .youare.gm { border-color:var(--gold); }
 
   /* broadcast: the match full screen on a TV, nothing to press */
+  /* the controllers panel is for the alliances' laptops: the game master and watchers don't get it on the match page */
+  body.nousb #usb, body.nousb #laptopChip { display:none; }
   body.tv { padding:0; } body.tv .bar, body.tv #usb, body.tv #warn { display:none !important; } body.tv main { max-width:none; padding:0; }
   .tvwrap { min-height:100vh; display:flex; flex-direction:column; padding:2.5vh 3vw; gap:1.5vh; }
   .tvtop { display:flex; justify-content:space-between; align-items:center; gap:2vw; }
@@ -296,7 +298,7 @@ function backButton() {
 function route() {
   pagesSeen++;
   stopPolling(); prev = null; refreshHome = null; window.scrollTo(0, 0);
-  document.body.classList.remove("tv");
+  document.body.classList.remove("tv", "nousb");
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   if (parts[0] === "create") return viewCreate();
   if (parts[0] === "join") return viewJoin(parts[1] || "");
@@ -445,7 +447,7 @@ function viewRole(code) {
     err.textContent = "";
     const takeover = Boolean(m.gmDevice && m.gmDevice !== device);
     if (takeover && !confirm("This match already has a game master on another device. Take over? That device loses the controls.")) return;
-    const { ok, data } = await post({ action: "claim", code, takeover });   // asks for the PIN, and again if it's wrong
+    const { ok, data } = await post({ action: "claim", code, takeover, laptop: usb.name });   // asks for the PIN, and again if it's wrong
     if (!ok) { err.textContent = data.error === "PIN rejected" ? "The game master needs the control PIN." : data.error; return; }
     setRole(code, "gm"); go("#/m/" + code);
   }
@@ -551,6 +553,7 @@ function viewMatch(code) {
   const role = getRole(code);
   if (!role) return go("#/role/" + code);   // a join link or a new device: say who you are first
   if (role === "tv") return go("#/tv/" + code);
+  document.body.classList.toggle("nousb", role !== "red" && role !== "blue");
   const gm = role === "gm";
   setCrumb(["Home", "#/"], ["Match " + code]);
   let built = false;
@@ -628,7 +631,7 @@ function viewMatch(code) {
       alert(lost); return go("#/role/" + code);
     }
     // A game master from before claims existed (or one that let go): this device takes the empty seat.
-    if (gm && !m.gmDevice && !el.claiming) { el.claiming = true; post({ action: "claim", code }).finally(() => { el.claiming = false; }); }
+    if (gm && !m.gmDevice && !el.claiming) { el.claiming = true; post({ action: "claim", code, laptop: usb.name }).finally(() => { el.claiming = false; }); }
     if (!built) build(m);
     store.set("vexnetLastMatch", m.code);
     setCrumb(["Home", "#/"], [`${m.typeTitle} · ${m.code}`]);
@@ -687,14 +690,15 @@ function viewMatch(code) {
     // Laptops: the online ones, plus any that joined and went away (they keep their side until removed).
     const gone = m.members.filter((x) => !x.online).map((x) => ({ name: x.name, ports: [], joined: true, alliance: x.alliance, offline: true }));
     const laptops = [...m.relays, ...gone];
-    const lsig = JSON.stringify([laptops, m.started]);
+    const lsig = JSON.stringify([laptops, m.started, m.gmLaptop]);
     if (lsig !== el.lsig) {
       el.lsig = lsig;
       el.laptops.replaceChildren(...(laptops.length ? laptops.map((r) => h("div", { class: "laptop" },
         h("span", {}, h("b", {}, r.name), r.name === usb.name ? h("span", { class: "muted" }, " (this laptop)") : null,
           h("br"), h("span", { class: "muted" }, r.offline ? "offline" : r.ports.length ? plural(r.ports.length, "controller") + ": " + r.ports.join(", ") : "no controllers")),
         h("span", { class: "row" },
-          r.joined ? h("span", { class: "pill " + (r.alliance ? "" : "ok"), style: r.alliance ? `background:var(--${r.alliance});color:#0b0b0f` : "" }, r.alliance ? `${r.alliance.toUpperCase()} ALLIANCE` : "JOINED") : null,
+          r.name === m.gmLaptop ? h("span", { class: "pill", style: "background:var(--gold);color:#16120a" }, "GAME MASTER") : null,
+          r.joined && (r.alliance || r.name !== m.gmLaptop) ? h("span", { class: "pill " + (r.alliance ? "" : "ok"), style: r.alliance ? `background:var(--${r.alliance});color:#0b0b0f` : "" }, r.alliance ? `${r.alliance.toUpperCase()} ALLIANCE` : "JOINED") : null,
           gm && r.joined && !m.started ? h("button", { class: "small ghost", onclick: () => {
             if (confirm(`Remove ${r.name} from this match?${r.alliance ? ` The ${r.alliance} alliance becomes free.` : ""}`)) act({ action: "kick", relay: r.name });
           } }, "Remove") : null,

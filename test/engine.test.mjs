@@ -371,3 +371,13 @@ test('END MATCH: final time kept, robots released, nothing can restart or join i
   // a lobby that never started can be ended too
   assert.equal(matchView(act(createMatch('M1V1', 'END222', T0), { action: 'end' }, relays), relays, T0).ended, true);
 });
+
+test('the game master claim names its laptop, so the laptop list can mark it', () => {
+  const relays = { A: rep(['COM3']) };
+  let m = createMatch('M1V1', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A' }, relays);
+  m = act(m, { action: 'claim', device: 'dev-1', laptop: 'A' }, relays);
+  assert.equal(matchView(m, relays, T0).gmLaptop, 'A');
+  m = act(m, { action: 'claim', device: 'dev-2', takeover: true }, relays);   // a phone or tablet: no laptop
+  assert.equal(matchView(m, relays, T0).gmLaptop, null);
+});
