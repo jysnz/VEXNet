@@ -184,19 +184,23 @@ export function relayPorts(matches, relay, now) {
 export const sideLaptops = (m, side) => m.joined.filter((r) => m.roles?.[r] === side);
 
 // An alliance laptop's controllers take its side's empty slots, in port order, whenever they show up: at the
-// join, or later when they are connected (relay reports). A laptop keeps one slot free for each other laptop on
-// its side, so with two red laptops in a 2v2 each drives one robot; alone it can drive both.
+// join, or later when they are connected (relay reports). A laptop with two controllers drives both of its side's
+// robots in a 2v2, even with another laptop on its side. A laptop that brings a controller but has no robot yet
+// takes one back from a laptop on its side driving more than one, so two laptops with one each drive one robot each.
 // Returns the changed match, or null if nothing changed.
 export function fillAlliance(m, relay, rep) {
   const side = m.roles?.[relay];
   if (!side || isStarted(m) || m.endedAt) return null;
   const t = TYPES[m.type];
   const slots = allianceSlots(m.type, side);
-  const mine = slots.filter((s) => m.assign[s]?.relay === relay).length;
-  const room = slots.length - (sideLaptops(m, side).length - 1) - mine;
+  const held = (r) => slots.filter((s) => m.assign[s]?.relay === r);
   const used = (port) => t.slots.some((s) => m.assign[s]?.relay === relay && m.assign[s]?.port === port);
-  const free = connectedPorts(rep).filter((p) => !used(p)).slice(0, Math.max(0, room));
-  const open = slots.filter((s) => !m.assign[s]);
+  const free = connectedPorts(rep).filter((p) => !used(p));
+  let open = slots.filter((s) => !m.assign[s]);
+  if (!open.length && !held(relay).length) {
+    const donor = sideLaptops(m, side).find((r) => r !== relay && held(r).length > 1);
+    if (donor) open = [held(donor).at(-1)];
+  }
   if (!free.length || !open.length) return null;
   const next = structuredClone(m);
   open.forEach((s, i) => { if (free[i]) next.assign[s] = { relay, port: free[i] }; });
@@ -377,11 +381,7 @@ export function applyAction(m, act, relays, now) {
         if (others.length >= mine.length) return { error: `the ${act.alliance} alliance is full (${others.join(', ')})` };
         // Switching sides: the laptop's controllers leave the other alliance's slots.
         for (const s of t.slots) if (!mine.includes(s) && next.assign[s]?.relay === act.relay) next.assign[s] = null;
-        // Room for the newcomer: a laptop on this side driving more than one robot hands back its last one.
-        for (const r of others) {
-          const held = mine.filter((s) => next.assign[s]?.relay === r);
-          if (held.length > 1 && !mine.some((s) => !next.assign[s])) next.assign[held.at(-1)] = null;
-        }
+        // A laptop on this side driving both robots keeps them until the newcomer brings a controller (fillAlliance).
         next.roles[act.relay] = act.alliance;
         if (!next.joined.includes(act.relay)) next.joined.push(act.relay);
         return { match: fillAlliance(next, act.relay, online[act.relay]) ?? next };
@@ -432,14 +432,16 @@ export function applyAction(m, act, relays, now) {
     }
     case 'autoassign': {
       if (!editable) return { error: 'the match has already started' };
-      // A laptop that joined as an alliance fills that alliance's slots; the others (joined without one), in
-      // join order then port order, fill whatever is left: red1, red2, blue1, blue2...
+      // A laptop that joined as an alliance fills that alliance's slots, the side's laptops taking turns (each gets
+      // a robot before one gets a second); the others (joined without one), in join order then port order, fill
+      // whatever is left: red1, red2, blue1, blue2...
       const roles = next.roles ?? {};
       const pool = (want) => next.joined.filter((name) => online[name] && (roles[name] ?? null) === want)
-        .flatMap((name) => connectedPorts(online[name]).map((port) => ({ relay: name, port })));
+        .flatMap((name) => connectedPorts(online[name]).map((port, turn) => ({ relay: name, port, turn })));
+      const turns = (list) => list.sort((a, b) => a.turn - b.turn).map(({ relay, port }) => ({ relay, port }));
       for (const s of t.slots) next.assign[s] = null;
-      for (const a of ALLIANCES) allianceSlots(next.type, a).forEach((s, i) => (next.assign[s] = pool(a)[i] ?? null));
-      const rest = pool(null);
+      for (const a of ALLIANCES) allianceSlots(next.type, a).forEach((s, i) => (next.assign[s] = turns(pool(a))[i] ?? null));
+      const rest = pool(null).map(({ relay, port }) => ({ relay, port }));
       for (const s of t.slots) if (!next.assign[s] && rest.length) next.assign[s] = rest.shift();
       return { match: next };
     }

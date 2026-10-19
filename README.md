@@ -4,6 +4,10 @@ Scrimmage field control for VEX V5 robots, run from a website. You **create a ma
 1v1 or 2v2), other laptops **join it with a code**, the controllers get assigned to robot slots, and **START**
 runs the whole match: 3-2-1, autonomous, driver control.
 
+**Version 1.4** (2026-10-17): the website and relay release - roles (red, blue, game master, broadcast), no PIN, END MATCH,
+two laptops per side in 2v2, and the fix for a joining laptop's robot losing its signal. Robots keep the `fieldctl` **1.3.0**
+library: nothing to re-upload.
+
 ```
  any browser (phone / tablet / laptop) ──► VEXNET website on Vercel ◄── polls over HTTPS ── relay on laptop A ─┐
    create / join / lobby / match screen      matches + clock, code                         ── relay on laptop B ─┤
@@ -23,7 +27,7 @@ runs the whole match: 3-2-1, autonomous, driver control.
 ## How a match goes
 
 Everyone picks a role when they create or join a match: **Red alliance**, **Blue alliance** or **Game master**.
-Each side takes **one laptop per robot** (1 v 1: one red and one blue laptop; 2 v 2: two of each, one robot each), and there is **one game-master device**. **Leave match** (top of the match page) gives up your place and goes home. **No PIN:** the 6-character match code
+Each side takes **up to one laptop per robot** (1 v 1: one red and one blue laptop; 2 v 2: up to two of each - one laptop with both controllers drives both robots, two laptops drive one each), and there is **one game-master device**. **Leave match** (top of the match page) gives up your place and goes home. **No PIN:** the 6-character match code
 is the only key, and only the game master (the device that picked it first) runs the match; the alliances' laptops only drive their own robots. A taken role shows who has it.
 
 1. **Every laptop with controllers** opens the website in Chrome/Edge and presses **Connect controller** (or runs the relay, below).

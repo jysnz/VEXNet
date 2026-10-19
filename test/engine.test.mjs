@@ -400,17 +400,42 @@ test('2v2: two laptops per side, one robot each; a third is turned away', () => 
   assert.match(applyAction(one, { action: 'join', relay: 'R2', alliance: 'red' }, relays, T0).error, /full/);
 });
 
-test('2v2: a red laptop with both controllers drives both robots until a second red laptop joins', () => {
+test('2v2: a red laptop with both controllers drives both robots until a second red laptop brings a controller', () => {
   let relays = { A: rep(['CTRL1', 'CTRL2']), B: rep([]) };
   let m = createMatch('M2V2', 'ABC123', T0);
   m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
-  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, { relay: 'A', port: 'CTRL2' }]);
-  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);   // B has no controller yet
-  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, null]);   // A handed back RED 2
+  const both = [{ relay: 'A', port: 'CTRL1' }, { relay: 'A', port: 'CTRL2' }];
+  assert.deepEqual([m.assign.red1, m.assign.red2], both);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);   // B has no controller: A keeps both
+  assert.deepEqual([m.assign.red1, m.assign.red2], both);
+  assert.equal(fillAlliance(m, 'B', relays.B), null);
   relays = { ...relays, B: rep(['CTRL1']) };
-  m = fillAlliance(m, 'B', relays.B);
-  assert.deepEqual(m.assign.red2, { relay: 'B', port: 'CTRL1' });
-  assert.equal(fillAlliance(m, 'A', relays.A), null);   // A doesn't take it back while B is on red
+  m = fillAlliance(m, 'B', relays.B);   // B connects one: it takes RED 2 back from A
+  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, { relay: 'B', port: 'CTRL1' }]);
+  assert.equal(fillAlliance(m, 'A', relays.A), null);   // A doesn't take it back while B drives it
+  assert.equal(fillAlliance(m, 'B', relays.B), null);
+  m = act(m, { action: 'leave', relay: 'B' }, relays);   // B leaves: A's second controller takes RED 2 again
+  m = fillAlliance(m, 'A', relays.A);
+  assert.deepEqual([m.assign.red1, m.assign.red2], both);
+});
+
+test('2v2: the second controller of a red laptop plugged in after another red laptop joined still gets RED 2', () => {
+  let relays = { A: rep(['CTRL1']), B: rep([]) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);   // a second red laptop with nothing plugged in
+  relays = { ...relays, A: rep(['CTRL1', 'CTRL2']) };
+  m = fillAlliance(m, 'A', relays.A);
+  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, { relay: 'A', port: 'CTRL2' }]);
+});
+
+test('2v2 auto-assign: the laptops on a side take turns, one robot each before a second', () => {
+  const relays = { A: rep(['CTRL1', 'CTRL2']), B: rep(['CTRL1']) };
+  let m = createMatch('M2V2', 'ABC123', T0);
+  m = act(m, { action: 'join', relay: 'A', alliance: 'red' }, relays);
+  m = act(m, { action: 'join', relay: 'B', alliance: 'red' }, relays);
+  m = act(m, { action: 'autoassign' }, relays);
+  assert.deepEqual([m.assign.red1, m.assign.red2], [{ relay: 'A', port: 'CTRL1' }, { relay: 'B', port: 'CTRL1' }]);
 });
 
 test('a pulled-out controller shows as UNPLUGGED (not waiting); a gone laptop as OFFLINE; a dead one as ERROR', () => {

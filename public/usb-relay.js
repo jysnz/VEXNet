@@ -212,7 +212,7 @@ const UsbRelay = (() => {
       try { await c.open(); }
       catch (e) {
         ctrls.delete(port);
-        note = "A controller is in use by another program (relay.py, the PROS terminal or another tab): close it and reconnect.";
+        note = `A controller couldn't be opened (${e.message || e}). Is it in use by another program (relay.py, the PROS terminal or another tab)? Close that and reconnect.`;
       }
       onChange();
       start();
@@ -315,8 +315,10 @@ const UsbRelay = (() => {
       // Opens Chrome's device picker (needs a click). One controller per pick.
       async connect() {
         const port = await navigator.serial.requestPort({ filters: [{ usbVendorId: VEX_VID, usbProductId: CONTROLLER_PID }] });
-        note = "";
-        await add(port);
+        // Two controllers look alike in Chrome's list: picking the one already connected would otherwise do nothing.
+        const had = ctrls.get(port);
+        note = had ? `That one is already connected as ${had.name}. Press Connect controller again and pick the other one (not marked "paired").` : "";
+        if (had) onChange(); else await add(port);
       },
       controllers: () => list().map((c) => {
         const s = c.status(), entry = ports[c.name];
